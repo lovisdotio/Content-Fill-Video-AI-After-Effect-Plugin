@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Console</title>
+    <style>
+        body {
+            background-color: #2b2b2b;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            color: #4a9eff;
+        }
+        .instructions {
+            background-color: #3a3a3a;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .code {
+            background-color: #1e1e1e;
+            padding: 10px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #f8f8f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Debug Console Instructions</h1>
+    
+    <div class="instructions">
+        <h3>🔍 How to see debug logs:</h3>
+        <ol>
+            <li><strong>Open Chrome DevTools:</strong>
+                <ul>
+                    <li>Right-click anywhere in the plugin panel</li>
+                    <li>Select "Inspect Element" or "Inspect"</li>
+                    <li>Or press <kbd>F12</kbd> while the plugin is focused</li>
+                </ul>
+            </li>
+            <li><strong>Go to Console tab</strong> in DevTools</li>
+            <li><strong>Clear the console</strong> (click the clear button or press Ctrl+L)</li>
+            <li><strong>Try clicking "Generate"</strong> in the plugin</li>
+            <li><strong>Watch the console</strong> for DEBUG messages</li>
+        </ol>
+    </div>
+
+    <div class="instructions">
+        <h3>📋 What to look for:</h3>
+        <ul>
+            <li><code class="code">DEBUG: Starting selection validation...</code></li>
+            <li><code class="code">DEBUG: validateSelection() returned: [result]</code></li>
+            <li><code class="code">DEBUG JSX: Starting validateSelection()</code> (in ExtendScript Console)</li>
+            <li>Any error messages in red</li>
+        </ul>
+    </div>
+
+    <div class="instructions">
+        <h3>🖥️ ExtendScript Console (for JSX logs):</h3>
+        <p>In After Effects, go to:</p>
+        <div class="code">Window > ExtendScript Toolkit CC</div>
+        <p>Or check the Info panel in After Effects for some messages.</p>
+    </div>
+
+    <script>
+        console.log("Debug console loaded - you should see this message in DevTools Console");
+        console.log("If you see this, the console is working!");
+    </script>
+</body>
+</html>

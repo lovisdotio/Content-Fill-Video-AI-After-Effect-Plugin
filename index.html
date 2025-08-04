@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Generative Fill Video - Lovis Odin</title>
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <h1>Generative Fill Video</h1>
+            <p class="author">by Lovis Odin</p>
+        </div>
+
+        <div class="help-section">
+            <details>
+                <summary>📋 Quick Setup Guide</summary>
+                <ol>
+                    <li><strong>Open a composition</strong> in After Effects</li>
+                    <li><strong>Select a video layer</strong></li>
+                    <li><strong>Create a mask</strong> (Pen Tool or Shape) around the area to replace</li>
+                    <li><strong>Keep the layer selected</strong> and use this plugin</li>
+                </ol>
+                <div class="debug-section">
+                    <button id="debugBtn" onclick="openDebugConsole()">🔍 Debug Console</button>
+                    <p style="font-size: 11px; color: #888; margin-top: 5px;">Open debug tools if you encounter issues</p>
+                </div>
+            </details>
+        </div>
+
+        <div class="form-group">
+            <label for="apiKey">FAL.ai API Key</label>
+            <input type="password" id="apiKey" placeholder="Paste your FAL_KEY here">
+            <small>Get your key at <a href="https://fal.ai" target="_blank">fal.ai</a></small>
+        </div>
+
+        <hr>
+
+        <div class="form-group">
+            <label for="prompt">Prompt</label>
+            <textarea id="prompt" rows="3" placeholder="A cinematic shot of a boat in the ocean..."></textarea>
+        </div>
+
+        <details>
+            <summary>Advanced Settings</summary>
+            <div class="form-group">
+                <label for="negative_prompt">Negative Prompt</label>
+                <textarea id="negative_prompt" rows="3" placeholder="low quality, blur, watermark..."></textarea>
+            </div>
+            <div class="form-group-inline">
+                <label for="resolution">Resolution</label>
+                <select id="resolution">
+                    <option value="720p" selected>720p</option>
+                    <option value="580p">580p</option>
+                    <option value="480p">480p</option>
+                </select>
+            </div>
+            <div class="form-group-inline">
+                <label for="num_inference_steps">Inference Steps</label>
+                <input type="number" id="num_inference_steps" value="30" min="1" max="100">
+            </div>
+        </details>
+
+        <button id="generate-btn">Generate</button>
+
+        <div id="status-area">
+            <p id="status-text">Status: Ready</p>
+            <progress id="progress-bar" value="0" max="100" style="width: 100%; display: none;"></progress>
+        </div>
+
+        <div id="debug-logs" style="display: none;">
+            <h4>Debug Logs:</h4>
+            <div id="log-content" style="background: #1e1e1e; color: #fff; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px; max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></div>
+        </div>
+
+        <!-- Important Warnings -->
+        <div class="warnings" style="background: #ffebee; border: 1px solid #e57373; border-radius: 4px; padding: 12px; margin-top: 20px;">
+            <h4 style="color: #c62828; margin: 0 0 8px 0; font-size: 13px;">⚠️ IMPORTANT NOTICES:</h4>
+            <ul style="color: #c62828; margin: 0; padding-left: 18px; font-size: 11px; line-height: 1.4;">
+                <li><strong>SAVE YOUR COMPOSITION</strong> before processing - this plugin modifies your project</li>
+                <li><strong>24 FPS ONLY</strong> - Other frame rates are not supported</li>
+                <li><strong>81 FRAMES MAX</strong> - Longer compositions will be truncated</li>
+                <li><strong>480p OUTPUT</strong> - Resolution limited due to fal.ai technical constraints</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <small>Powered by fal.ai • Created by Lovis Odin</small>
+        </div>
+    </div>
+
+    <!-- CEP Libraries -->
+    <script src="js/libs/CSInterface.js"></script>
+    <!-- Official FAL.ai Client (Bundled) -->
+    <script src="js/fal-client-bundled.js"></script>
+    <!-- Fallback FAL.ai Client (Custom) -->
+    <script src="js/fal-client.js"></script>
+    <!-- Our JavaScript -->
+    <script src="js/main.js"></script>
+</body>
+</html>
