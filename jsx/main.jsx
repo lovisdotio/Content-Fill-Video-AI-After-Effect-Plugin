@@ -88,13 +88,7 @@ function renderVideos(selectionInfoString, renderFolderName) {
         }
         
         // Create render folder
-        var projectFolder;
-        if (app.project.file !== null) {
-            projectFolder = app.project.file.parent;
-        } else {
-            $.writeln("DEBUG JSX: Project not saved, using Desktop as render location.");
-            projectFolder = Folder.desktop;
-        }
+        var projectFolder = app.project.file.parent;
         var renderFolder = new Folder(projectFolder.fsName + "/" + renderFolderName);
         if (!renderFolder.exists) {
             renderFolder.create();
@@ -119,18 +113,22 @@ function renderVideos(selectionInfoString, renderFolderName) {
             throw new Error("Could not find the layer: " + selectionInfo.layerName);
         }
         
-        // Store original mask states
-        var maskStates = [];
+        // Store original mask modes
+        var maskModes = [];
         var masks = originalLayer.property("ADBE Mask Parade");
         for (var m = 1; m <= masks.numProperties; m++) {
-            maskStates.push(masks.property(m).inverted);
+            maskModes.push(masks.property(m).maskMode);
         }
         
-        $.writeln("DEBUG JSX: Rendering SOURCE (without masks)...");
-        
-        // STEP 1: Render SOURCE - disable masks temporarily
+        $.writeln("DEBUG JSX: Rendering SOURCE (with white underlay for mask area)...");
+
+        // STEP 1: Render SOURCE with a white background visible through the mask
+        var whiteUnderlay = originalComp.layers.addSolid([1, 1, 1], "Temp_White_Underlay", originalComp.width, originalComp.height, 1, originalComp.duration);
+        whiteUnderlay.moveAfter(originalLayer); // Move under the video layer
+
+        // Set masks to Subtract to punch a hole in the video layer
         for (var m = 1; m <= masks.numProperties; m++) {
-            masks.property(m).maskMode = MaskMode.NONE;
+            masks.property(m).maskMode = MaskMode.SUBTRACT;
         }
         
         var renderQueue = app.project.renderQueue;
@@ -152,21 +150,28 @@ function renderVideos(selectionInfoString, renderFolderName) {
         
         sourceItem.outputModule(1).file = sourcePath;
         $.writeln("DEBUG JSX: Rendering SOURCE...");
-        renderQueue.render();
+        renderQueue.render(); 
         
-        // Wait for source render to complete
-        $.sleep(2000);
+        // Wait for render to complete by checking the render queue status
+        while (renderQueue.rendering) {
+            $.sleep(100); // Wait 100ms before checking again
+        }
+        $.writeln("DEBUG JSX: Source render queue finished.");
         
         // Clean up source render
         sourceItem.remove();
+
+        // Restore original mask modes and remove the white underlay
+        if (whiteUnderlay) {
+            whiteUnderlay.remove();
+        }
+        for (var m = 1; m <= masks.numProperties; m++) {
+            masks.property(m).maskMode = maskModes[m-1]; // Restore original mode
+        }
         
         $.writeln("DEBUG JSX: Rendering MASK (with levels effect)...");
         
-        // STEP 2: Render MASK - restore masks and create black background
-        for (var m = 1; m <= masks.numProperties; m++) {
-            masks.property(m).maskMode = MaskMode.ADD; // Restore mask
-        }
-        
+        // STEP 2: Render MASK - create black and white layers for the mask
         // Create a black solid background
         var blackLayer = originalComp.layers.addSolid([0, 0, 0], "Temp_Black_BG", originalComp.width, originalComp.height, 1, originalComp.duration);
         blackLayer.moveToEnd(); // Move to bottom
@@ -224,8 +229,11 @@ function renderVideos(selectionInfoString, renderFolderName) {
         maskItem.outputModule(1).file = maskPath;
         renderQueue.render();
         
-        // Wait for mask render to complete
-        $.sleep(2000);
+        // Wait for render to complete by checking the render queue status
+        while (renderQueue.rendering) {
+            $.sleep(100); // Wait 100ms before checking again
+        }
+        $.writeln("DEBUG JSX: Mask render queue finished.");
         
         // Clean up mask render and restore original state
         maskItem.remove();
@@ -243,9 +251,13 @@ function renderVideos(selectionInfoString, renderFolderName) {
             $.writeln("DEBUG JSX: Could not remove black layer: " + e.toString());
         }
         
-        // Re-enable the original layer
+        // Re-enable the original layer and restore mask modes
         if (originalLayer) {
             originalLayer.enabled = true;
+            var masks = originalLayer.property("ADBE Mask Parade");
+            for (var m = 1; m <= masks.numProperties; m++) {
+                masks.property(m).maskMode = maskModes[m-1]; // Restore original mode
+            }
         }
         
         $.writeln("DEBUG JSX: Both renders completed");
@@ -265,12 +277,21 @@ function renderVideos(selectionInfoString, renderFolderName) {
         
         app.endUndoGroup();
         
-        // Return result as manual JSON string (make sure to escape any quotes in paths)
-        var sourcePathStr = sourcePath.fsName.replace(/"/g, '\\"');
-        var maskPathStr = maskPath.fsName.replace(/"/g, '\\"');
-        var renderFolderStr = renderFolder.fsName.replace(/"/g, '\\"');
+        // Return result as manual JSON string (escape backslashes for JSON compatibility)
+        var sourcePathStr = sourcePath.fsName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        var maskPathStr = maskPath.fsName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        var renderFolderStr = renderFolder.fsName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+
+        var resultJSON = '{"sourceVideoPath":"' + sourcePathStr + '","maskVideoPath":"' + maskPathStr + '","renderFolder":"' + renderFolderStr + '","frameRate":' + selectionInfo.frameRate + '}';
         
-        return '{"sourceVideoPath":"' + sourcePathStr + '","maskVideoPath":"' + maskPathStr + '","renderFolder":"' + renderFolderStr + '","frameRate":' + selectionInfo.frameRate + '}';   
+        $.writeln("DEBUG JSX: Successfully created JSON. Preparing to return.");
+        
+        // Add a final delay to ensure After Effects has stabilized before returning
+        $.sleep(1000); 
+        
+        $.writeln("DEBUG JSX: Final delay complete. Returning JSON: " + resultJSON);
+        
+        return resultJSON;
         
     } catch (error) {
         app.endUndoGroup();

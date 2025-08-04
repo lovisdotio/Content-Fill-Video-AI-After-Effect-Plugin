@@ -77,9 +77,11 @@
         <div class="warnings" style="background: #ffebee; border: 1px solid #e57373; border-radius: 4px; padding: 12px; margin-top: 20px;">
             <h4 style="color: #c62828; margin: 0 0 8px 0; font-size: 13px;">⚠️ IMPORTANT NOTICES:</h4>
             <ul style="color: #c62828; margin: 0; padding-left: 18px; font-size: 11px; line-height: 1.4;">
+                <li><strong>ENABLE SCRIPT PERMISSIONS:</strong> Go to "Preferences > Scripting & Expressions" and check "Allow Scripts to Write Files and Access Network"</li>
                 <li><strong>SAVE YOUR COMPOSITION</strong> before processing - this plugin modifies your project</li>
                 <li><strong>24 FPS ONLY</strong> - Other frame rates are not supported</li>
-                <li><strong>81 FRAMES MAX</strong> - Longer compositions will be truncated</li>
+                <li><strong>240 FRAMES MAX</strong> - Longer compositions will be truncated</li>
+                <li><strong>ESTIMATED COST: ~$0.20 / 81 frames</strong> - Check fal.ai for current pricing</li>
                 <li><strong>480p OUTPUT</strong> - Resolution limited due to fal.ai technical constraints</li>
             </ul>
         </div>
@@ -88,6 +90,25 @@
             <small>Powered by fal.ai • Created by Lovis Odin</small>
         </div>
     </div>
+
+    <!-- Fallback Download Modal -->
+    <div id="fallback-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <button class="modal-close-btn">&times;</button>
+            <h3>Download Failed</h3>
+            <p>The video could not be imported automatically, likely due to system permissions.</p>
+            <p>You can download it manually from the link below.</p>
+            <div class="form-group">
+                <label for="fallback-url">Video URL</label>
+                <input type="text" id="fallback-url" readonly style="background:#555;">
+            </div>
+            <div class="modal-buttons">
+                <a id="fallback-link" href="#" target="_blank" class="button-link">Open Download Link</a>
+                <button id="copy-url-btn">Copy URL</button>
+            </div>
+        </div>
+    </div>
+
 
     <!-- CEP Libraries -->
     <script src="js/libs/CSInterface.js"></script>

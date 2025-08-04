@@ -14,16 +14,16 @@ Remove or replace objects in videos using cutting-edge AI technology, directly i
 - 🎭 **Mask-Based**: Uses After Effects masks for precise control
 - 🚀 **Fast Processing**: Powered by fal.ai's wan-vace model
 - 🎬 **Direct Integration**: Works as a native After Effects panel
-- ✨ **Open Source & Free Plugin**: The plugin is free, but the AI service has a small fee.
-- 💸 **Affordable AI**: Each video generation costs approximately $0.20, charged by the fal.ai service.
+- ✨ **Free to Use**: No subscription, no hidden costs
 - 🔄 **Auto-Import**: Results automatically added to your project
 
 ## ⚠️ Current Limitations (But Hey, It's Free!)
 
 - **480p Output** - Limited by fal.ai technical constraints for now
 - **24 FPS Only** - Other frame rates not supported yet  
-- **81 Frames Max** - About 3.4 seconds at 24fps
-- **Save Your Work** - Always backup your composition before processing!
+- **240 Frames Max** - About 10 seconds at 24fps
+- **Cost**: ~$0.20 per 81 frames. Check [fal.ai](https://fal.ai) for exact pricing.
+- ⚠️ **SAVE YOUR PROJECT** - **Crucial for Windows users!** Always save your project before processing to prevent errors.
 
 ## 🚀 Quick Installation
 
@@ -31,16 +31,13 @@ Remove or replace objects in videos using cutting-edge AI technology, directly i
 
 **macOS:**
 ```bash
-# Make the script executable, then run it
 chmod +x install.sh
 ./install.sh
 ```
 
 **Windows:**
-> **Important**: You must run the installer as an administrator.
 ```batch
-# Right-click the .bat file and select "Run as administrator"
-install-windows.bat
+Right-click install-windows.bat → "Run as Administrator"
 ```
 
 ### Manual Installation
@@ -65,6 +62,15 @@ C:\Program Files (x86)\Common Files\Adobe\CEP\extensions\
 
 Then restart After Effects!
 
+## 🔒 Permissions
+
+For the plugin to work, you MUST enable a specific setting in After Effects:
+
+1.  Go to `Preferences > Scripting & Expressions`
+2.  Enable: `Allow Scripts to Write Files and Access Network`
+
+**This is required for the plugin to save videos and connect to the AI service.**
+
 ## Requirements
 
 - Adobe After Effects 2020 or later
@@ -77,7 +83,12 @@ Then restart After Effects!
    - Sign up at [fal.ai](https://fal.ai) (free credits included!)
    - Copy your API key from the dashboard
 
-2. **In After Effects:**
+2.  **Enable Permissions**
+    -   In After Effects, go to `Preferences > Scripting & Expressions`
+    -   Check `Allow Scripts to Write Files and Access Network`
+
+3. **In After Effects:**
+   - **IMPORTANT:** Save your project first!
    - Open: `Window > Extensions > Generative Fill Video - Lovis Odin`
    - Paste your API key in the plugin
    - Select a video layer with a mask
@@ -93,7 +104,7 @@ Then restart After Effects!
 ## 💡 Pro Tips
 
 - **Save First** - Always save your composition before processing
-- **Short & Sweet** - Keep videos under 81 frames for best results
+- **Short & Sweet** - Keep videos under 240 frames for best results
 - **Good Prompts** - Be specific: "red sports car" vs "car"
 - **Clean Masks** - Smooth, precise masks = better results
 - **Backup Plan** - Plugin shows download link if auto-download fails
@@ -103,12 +114,14 @@ Then restart After Effects!
 The plugin now displays these warnings prominently:
 - ⚠️ **SAVE YOUR COMPOSITION** before processing  
 - ⚠️ **24 FPS ONLY** - Other frame rates not supported
-- ⚠️ **81 FRAMES MAX** - Longer videos will be truncated  
+- ⚠️ **240 FRAMES MAX** - Longer videos will be truncated  
+- ⚠️ **ESTIMATED COST** - ~$0.20 / 81 frames (check fal.ai for details)
 - ⚠️ **480p OUTPUT** - Limited by current API constraints
 
 ## 🐛 Troubleshooting
 
 **Plugin not showing in After Effects?**
+- ✅ Check `Preferences > Scripting & Expressions > Allow Scripts to Write Files and Access Network` is ENABLED.
 - ✅ Check CEP debug mode is enabled (run install script again)
 - ✅ Restart After Effects completely
 - ✅ Verify plugin is in extensions folder
@@ -126,7 +139,7 @@ The plugin now displays these warnings prominently:
 
 **Processing stuck or fails?**
 - ✅ Verify your FAL.ai API key and credits
-- ✅ Ensure composition is ≤81 frames at 24fps
+- ✅ Ensure composition is ≤240 frames at 24fps
 - ✅ Try a simpler, clearer prompt
 - ✅ Save project and restart After Effects
 

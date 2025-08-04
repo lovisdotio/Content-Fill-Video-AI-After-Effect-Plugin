@@ -1,6 +1,8 @@
 // CEP Interface
 var csInterface = new CSInterface();
 
+
+
 // UI Elements
 var generateBtn = document.getElementById("generate-btn");
 var apiKeyInput = document.getElementById("apiKey");
@@ -197,7 +199,7 @@ function processWithFalAI(renderResult, params) {
             
             addDebugLog("Mask video uploaded successfully: " + maskUrl);
             
-            updateStatus("Submitting AI inpainting job... (This may take 2-3 minutes, limited to 81 frames)");
+            updateStatus("Submitting AI inpainting job... (This may take 2-3 minutes per 81 frames)");
             showProgress(true, 60);
             
             // Submit job to FAL.ai (wan-vace needs both source and mask videos)
@@ -321,13 +323,9 @@ function downloadAndImportResult(videoUrl, renderFolder) {
             addDebugLog("Download failed: " + err);
             updateStatus("Download failed!");
             
-            // Show popup with download link as fallback
-            var fallbackMessage = "Download failed due to permissions or system issues.\n\n" +
-                                "You can manually download your video from:\n" + videoUrl + "\n\n" +
-                                "Save it to: " + outputPath + "\n\n" +
-                                "Then manually import it into After Effects.";
+            // Show custom modal with download link
+            showFallbackModal(videoUrl);
             
-            showAlert(fallbackMessage);
             generateBtn.disabled = false;
             showProgress(false);
             return;
@@ -441,6 +439,50 @@ function openDebugConsole() {
               "• Right-click in this panel → 'Inspect Element'\n" +
               "• Go to Console tab for more detailed logs");
 }
+
+// Fallback Modal Functions
+function showFallbackModal(videoUrl) {
+    var modal = document.getElementById("fallback-modal");
+    var urlInput = document.getElementById("fallback-url");
+    var link = document.getElementById("fallback-link");
+    
+    urlInput.value = videoUrl;
+    link.href = videoUrl;
+    
+    modal.style.display = "flex";
+}
+
+function hideFallbackModal() {
+    var modal = document.getElementById("fallback-modal");
+    modal.style.display = "none";
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    var modal = document.getElementById("fallback-modal");
+    var closeBtn = document.querySelector(".modal-close-btn");
+    var copyBtn = document.getElementById("copy-url-btn");
+    var urlInput = document.getElementById("fallback-url");
+
+    if (closeBtn) {
+        closeBtn.addEventListener("click", hideFallbackModal);
+    }
+    
+    if (copyBtn) {
+        copyBtn.addEventListener("click", function() {
+            urlInput.select();
+            document.execCommand("copy");
+            updateStatus("URL copied to clipboard!");
+        });
+    }
+
+    if (modal) {
+        modal.addEventListener("click", function(event) {
+            if (event.target === modal) {
+                hideFallbackModal();
+            }
+        });
+    }
+});
 
 console.log("Generative Fill Video Plugin by Lovis Odin - Initialized");
 setTimeout(function() {

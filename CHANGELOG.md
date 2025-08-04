@@ -20,7 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Better build process** - Webpack configuration for reliable bundling
 
 ### 🐛 Fixed
-- **Windows unsaved project crash** - Fixed a critical bug where the plugin would crash on Windows if the After Effects project was not saved before running the extension.
 - **Windows installer** - Previously empty, now fully functional
 - **Download failures** - Added system-level curl/PowerShell download methods
 - **File permissions** - Better handling of macOS and Windows file system differences
