@@ -88,7 +88,13 @@ function renderVideos(selectionInfoString, renderFolderName) {
         }
         
         // Create render folder
-        var projectFolder = app.project.file.parent;
+        var projectFolder;
+        if (app.project.file !== null) {
+            projectFolder = app.project.file.parent;
+        } else {
+            $.writeln("DEBUG JSX: Project not saved, using Desktop as render location.");
+            projectFolder = Folder.desktop;
+        }
         var renderFolder = new Folder(projectFolder.fsName + "/" + renderFolderName);
         if (!renderFolder.exists) {
             renderFolder.create();

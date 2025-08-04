@@ -14,7 +14,8 @@ Remove or replace objects in videos using cutting-edge AI technology, directly i
 - 🎭 **Mask-Based**: Uses After Effects masks for precise control
 - 🚀 **Fast Processing**: Powered by fal.ai's wan-vace model
 - 🎬 **Direct Integration**: Works as a native After Effects panel
-- ✨ **Free to Use**: No subscription, no hidden costs
+- ✨ **Open Source & Free Plugin**: The plugin is free, but the AI service has a small fee.
+- 💸 **Affordable AI**: Each video generation costs approximately $0.20, charged by the fal.ai service.
 - 🔄 **Auto-Import**: Results automatically added to your project
 
 ## ⚠️ Current Limitations (But Hey, It's Free!)
@@ -30,13 +31,16 @@ Remove or replace objects in videos using cutting-edge AI technology, directly i
 
 **macOS:**
 ```bash
+# Make the script executable, then run it
 chmod +x install.sh
 ./install.sh
 ```
 
 **Windows:**
+> **Important**: You must run the installer as an administrator.
 ```batch
-Right-click install-windows.bat → "Run as Administrator"
+# Right-click the .bat file and select "Run as administrator"
+install-windows.bat
 ```
 
 ### Manual Installation
