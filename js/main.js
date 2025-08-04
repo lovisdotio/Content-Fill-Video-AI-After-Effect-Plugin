@@ -60,24 +60,34 @@ generateBtn.addEventListener("click", function() {
         // Call ExtendScript to validate selection
         csInterface.evalScript("validateSelection()", function(result) {
             addDebugLog("validateSelection() returned: " + result);
-            
+
+            var hasError = false;
+            var errorMessage = "";
+
             if (!result) {
-                addDebugLog("ERROR: No result returned from ExtendScript!");
-                throw new Error("No response from After Effects. Please try again.");
-            }
-            
-            if (result.startsWith("ERROR:")) {
-                var error = result.substring(6);
-                addDebugLog("ExtendScript error: " + error);
-                if (error.includes("select a composition")) {
-                    throw new Error("Please open a composition in After Effects");
-                } else if (error.includes("select exactly one layer")) {
-                    throw new Error("Please select exactly one layer");
-                } else if (error.includes("no masks")) {
-                    throw new Error("Please add a mask to the selected layer");
+                hasError = true;
+                errorMessage = "No response from After Effects. Please try again.";
+                addDebugLog("ERROR: " + errorMessage);
+            } else if (result.startsWith("ERROR:")) {
+                hasError = true;
+                var errorText = result.substring(6);
+                addDebugLog("ExtendScript error: " + errorText);
+                if (errorText.includes("select a composition")) {
+                    errorMessage = "Please open a composition in After Effects.";
+                } else if (errorText.includes("select exactly one layer")) {
+                    errorMessage = "Please select exactly one layer to continue.";
+                } else if (errorText.includes("no masks")) {
+                    errorMessage = "The selected layer has no masks. Please add a mask.";
                 } else {
-                    throw new Error(error);
+                    errorMessage = errorText;
                 }
+            }
+
+            if (hasError) {
+                updateStatus("Error: " + errorMessage);
+                showAlert(errorMessage);
+                generateBtn.disabled = false; // Re-enable the button
+                return; // Stop execution
             }
             
             addDebugLog("Parsing selection info...");
@@ -150,8 +160,12 @@ function startRendering(selectionInfo, params) {
 function processWithFalAI(renderResult, params) {
     updateStatus("Preparing to upload source video...");
     showProgress(true, 40);
+
+    // Normalize paths for the uploader (replace backslashes with forward slashes)
+    var sourceVideoPath = renderResult.sourceVideoPath.replace(/\\/g, "/");
+    var maskVideoPath = renderResult.maskVideoPath.replace(/\\/g, "/");
     
-    addDebugLog("About to convert source video: " + renderResult.sourceVideoPath);
+    addDebugLog("About to convert source video: " + sourceVideoPath);
     addDebugLog("API Key length: " + params.apiKey.length);
     
     // Use official FAL.ai client only (no fallback)
@@ -170,7 +184,7 @@ function processWithFalAI(renderResult, params) {
     addDebugLog("Client loaded successfully with uploadFile available");
     updateStatus("Uploading source video to FAL.ai...");
     
-    bundledClient.uploadFile(renderResult.sourceVideoPath, params.apiKey, function(err, sourceUrl) {
+    bundledClient.uploadFile(sourceVideoPath, params.apiKey, function(err, sourceUrl) {
         addDebugLog("Upload callback called via official FAL.ai client");
         if (err) {
             addDebugLog("Upload error: " + err);
@@ -187,7 +201,7 @@ function processWithFalAI(renderResult, params) {
         showProgress(true, 50);
         
         // Upload mask video (wan-vace needs both source and mask)
-        bundledClient.uploadFile(renderResult.maskVideoPath, params.apiKey, function(err, maskUrl) {
+        bundledClient.uploadFile(maskVideoPath, params.apiKey, function(err, maskUrl) {
             if (err) {
                 addDebugLog("Mask upload error: " + err);
                 updateStatus("Mask upload failed!");
@@ -202,6 +216,19 @@ function processWithFalAI(renderResult, params) {
             updateStatus("Submitting AI inpainting job... (This may take 2-3 minutes per 81 frames)");
             showProgress(true, 60);
             
+            // Calculate aspect ratio
+            var aspectRatio;
+            if (renderResult.compWidth && renderResult.compHeight) {
+                var ratio = renderResult.compWidth / renderResult.compHeight;
+                if (Math.abs(ratio - (16/9)) < 0.05) aspectRatio = "16:9";
+                else if (Math.abs(ratio - (9/16)) < 0.05) aspectRatio = "9:16";
+                else if (Math.abs(ratio - 1) < 0.05) aspectRatio = "1:1";
+                else aspectRatio = "16:9"; // Default fallback
+            } else {
+                aspectRatio = "16:9"; // Default fallback
+            }
+            addDebugLog("Calculated aspect ratio: " + aspectRatio);
+
             // Submit job to FAL.ai (wan-vace needs both source and mask videos)
             var jobParams = {
                 prompt: params.prompt,
@@ -210,46 +237,44 @@ function processWithFalAI(renderResult, params) {
                 maskUrl: maskUrl, // Mask video URL
                 fps: renderResult.frameRate || 16, // Use source video FPS
                 resolution: params.resolution,
-                aspect_ratio: params.aspect_ratio,
+                aspect_ratio: aspectRatio,
                 num_inference_steps: params.num_inference_steps,
                 apiKey: params.apiKey
             };
         
-        bundledClient.submitJob(jobParams, function(err, result) {
-            addDebugLog("Job submission callback received");
-            addDebugLog("Error: " + (err ? err.message || err : "none"));
-            addDebugLog("Result: " + JSON.stringify(result));
-            
-            if (err) {
-                addDebugLog("Job submission failed: " + (err.message || err));
-                updateStatus("Job submission failed!");
-                showAlert("Job Error: " + (err.message || err));
-                generateBtn.disabled = false;
-                showProgress(false);
-                return;
-            }
-            
-            if (result && result.video && result.video.url) {
+            bundledClient.submitJob(jobParams, function(err, result) {
+                addDebugLog("Job submission callback received");
+                addDebugLog("Error: " + (err ? err.message || err : "none"));
+                addDebugLog("Result: " + JSON.stringify(result));
+                
+                if (err) {
+                    addDebugLog("Job submission failed: " + (err.message || err));
+                    updateStatus("Job submission failed!");
+                    showAlert("Job Error: " + (err.message || err));
+                    generateBtn.disabled = false;
+                    showProgress(false);
+                    return;
+                }
+                
+                            if (result && result.video && result.video.url) {
                 addDebugLog("Synchronous job completed, video URL: " + result.video.url);
-                // Synchronous job - result ready immediately
-                downloadAndImportResult(result.video.url, renderResult.renderFolder);
+                downloadAndImportResult(result.video.url, renderResult.renderFolder, renderResult);
             } else if (result && result.request_id) {
                 addDebugLog("Asynchronous job started, request ID: " + result.request_id);
-                // Asynchronous job - need to poll for completion
-                pollJobStatus(result.request_id, params.apiKey, renderResult.renderFolder);
+                pollJobStatus(result.request_id, params.apiKey, renderResult.renderFolder, renderResult);
             } else {
-                addDebugLog("Unexpected response format: " + JSON.stringify(result));
-                updateStatus("Unexpected API response!");
-                showAlert("Unexpected response from FAL.ai: " + JSON.stringify(result));
-                generateBtn.disabled = false;
-                showProgress(false);
-            }
-        });
+                    addDebugLog("Unexpected response format: " + JSON.stringify(result));
+                    updateStatus("Unexpected API response!");
+                    showAlert("Unexpected response from FAL.ai: " + JSON.stringify(result));
+                    generateBtn.disabled = false;
+                    showProgress(false);
+                }
+            });
         });
     });
 }
 
-function pollJobStatus(requestId, apiKey, renderFolder) {
+function pollJobStatus(requestId, apiKey, renderFolder, renderResult) {
     updateStatus("AI processing in progress...");
     showProgress(true, 70);
     
@@ -275,7 +300,7 @@ function pollJobStatus(requestId, apiKey, renderFolder) {
             if (result && result.status === 'COMPLETED' && result.video && result.video.url) {
                 addDebugLog("Job completed! Video URL: " + result.video.url);
                 clearInterval(pollInterval);
-                downloadAndImportResult(result.video.url, renderFolder);
+                downloadAndImportResult(result.video.url, renderFolder, renderResult);
             } else if (result && result.status === 'FAILED') {
                 addDebugLog("Job failed: " + (result.error || 'Unknown error'));
                 clearInterval(pollInterval);
@@ -291,7 +316,7 @@ function pollJobStatus(requestId, apiKey, renderFolder) {
     }, 5000); // Poll every 5 seconds
 }
 
-function downloadAndImportResult(videoUrl, renderFolder) {
+function downloadAndImportResult(videoUrl, renderFolder, renderResult) {
     addDebugLog("Starting download and import process");
     addDebugLog("Video URL: " + videoUrl);
     addDebugLog("Render folder: " + renderFolder);
@@ -335,8 +360,9 @@ function downloadAndImportResult(videoUrl, renderFolder) {
         updateStatus("Importing into After Effects...");
         showProgress(true, 95);
         
-        // Import the result into After Effects
-        var importScript = "importVideoFile('" + outputPath + "')";
+        // Pass the original renderResult (which includes comp info) to the import script
+        var selectionString = JSON.stringify(renderResult);
+        var importScript = "importVideoFile('" + outputPath + "', '" + selectionString + "')";
         addDebugLog("Calling ExtendScript: " + importScript);
         
         csInterface.evalScript(importScript, function(result) {
