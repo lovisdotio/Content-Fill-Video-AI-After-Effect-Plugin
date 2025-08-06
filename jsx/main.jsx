@@ -9,53 +9,25 @@ function validateSelectionForInpaint() {
     try {
         app.beginUndoGroup("Validate Selection");
         
-        // Debug: Log start of validation
-        $.writeln("DEBUG JSX: Starting validateSelection()");
-        
         var comp = app.project.activeItem;
-        $.writeln("DEBUG JSX: Active item type: " + (comp ? comp.typeName : "null"));
-        
         if (!(comp instanceof CompItem)) {
-            $.writeln("DEBUG JSX: No active composition");
             throw new Error("Please select a composition.");
         }
         
-        $.writeln("DEBUG JSX: Active comp found: " + comp.name);
-        
         var selectedLayers = comp.selectedLayers;
-        $.writeln("DEBUG JSX: Number of selected layers: " + selectedLayers.length);
-        
         if (selectedLayers.length !== 1) {
             throw new Error("Please select exactly one layer.");
         }
         
         var layer = selectedLayers[0];
-        $.writeln("DEBUG JSX: Selected layer: " + layer.name);
-        
         var maskPropertyGroup = layer.property("ADBE Mask Parade");
-        var maskCount = maskPropertyGroup.numProperties;
-        $.writeln("DEBUG JSX: Number of masks: " + maskCount);
-        
-        if (maskCount === 0) {
+        if (!maskPropertyGroup || maskPropertyGroup.numProperties === 0) {
             throw new Error("The selected layer has no masks.");
         }
         
-        $.writeln("DEBUG JSX: Validation successful");
         app.endUndoGroup();
         
-            var selectionInfo = {
-        compName: comp.name,
-        layerName: layer.name,
-        compId: comp.id,
-        layerId: layer.id,
-        compWidth: comp.width,
-        compHeight: comp.height,
-        compDuration: comp.duration,
-        frameRate: comp.frameRate
-    };
-    
-    // ExtendScript doesn't have JSON.stringify, so we build the string manually
-    return '{"compName":"' + comp.name + '","layerName":"' + layer.name + '","compId":' + comp.id + ',"layerId":' + layer.id + ',"compWidth":' + comp.width + ',"compHeight":' + comp.height + ',"compDuration":' + comp.duration + ',"frameRate":' + comp.frameRate + '}';
+        return '{"compName":"' + comp.name + '","layerName":"' + layer.name + '","compId":' + comp.id + ',"layerId":' + layer.id + ',"compWidth":' + comp.width + ',"compHeight":' + comp.height + ',"compDuration":' + comp.duration + ',"frameRate":' + comp.frameRate + '}';
         
     } catch (error) {
         app.endUndoGroup();
@@ -65,7 +37,6 @@ function validateSelectionForInpaint() {
 
 /**
  * Validates the current selection for video-to-video mode
- * Returns JSON string with selection info or error
  */
 function validateSelectionForVideo() {
     try {
@@ -95,74 +66,37 @@ function validateSelectionForVideo() {
 
 /**
  * Renders only the selected layer for video-to-video
- * Returns JSON string with file path or error
  */
 function renderVideoForVideo(selectionInfoString, renderFolderName) {
     try {
         app.beginUndoGroup("Render for Video-to-Video");
         
         var selectionInfo = eval('(' + selectionInfoString + ')');
+        var originalComp = findCompById(selectionInfo.compId);
+        if (!originalComp) throw new Error("Could not find the original composition.");
         
-        var originalComp = null;
-        for (var i = 1; i <= app.project.numItems; i++) {
-            if (app.project.item(i) instanceof CompItem && app.project.item(i).id === selectionInfo.compId) {
-                originalComp = app.project.item(i);
-                break;
-            }
-        }
-        
-        if (!originalComp) {
-            throw new Error("Could not find the original composition.");
-        }
-        
-        var projectFolder = app.project.file.parent;
+        var projectFolder = getProjectFolder();
         var renderFolder = new Folder(projectFolder.fsName + "/" + renderFolderName);
-        if (!renderFolder.exists) {
-            renderFolder.create();
-        }
+        if (!renderFolder.exists) renderFolder.create();
         
         var sourcePath = new File(renderFolder.fsName + "/source_v2v.mp4");
         
-        var originalLayer = null;
-        for (var i = 1; i <= originalComp.numLayers; i++) {
-            if (originalComp.layer(i).name === selectionInfo.layerName) {
-                originalLayer = originalComp.layer(i);
-            } else {
-                originalComp.layer(i).enabled = false;
-            }
-        }
-        
-        if (!originalLayer) {
-            throw new Error("Could not find the layer: " + selectionInfo.layerName);
-        }
-        
+        var originalStates = setLayerStates(originalComp, selectionInfo.layerName, true); // Keep only selected layer
+
         var renderQueue = app.project.renderQueue;
         var sourceItem = renderQueue.items.add(originalComp);
-        
-        try {
-            sourceItem.outputModule(1).applyTemplate("H.264 - Match Render Settings - 15 Mbps");
-        } catch (e) {
-            sourceItem.outputModule(1).format = "H.264";
-        }
-        
+        applyH264Template(sourceItem);
         sourceItem.outputModule(1).file = sourcePath;
-        renderQueue.render(); 
         
-        while (renderQueue.rendering) {
-            $.sleep(100);
-        }
-        
+        renderAndWait(renderQueue);
         sourceItem.remove();
         
-        for (var i = 1; i <= originalComp.numLayers; i++) {
-            originalComp.layer(i).enabled = true;
-        }
+        restoreLayerStates(originalComp, originalStates);
         
         app.endUndoGroup();
         
         var sourcePathStr = sourcePath.fsName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         var renderFolderStr = renderFolder.fsName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-
         return '{"sourceVideoPath":"' + sourcePathStr + '","renderFolder":"' + renderFolderStr + '","frameRate":' + selectionInfo.frameRate + '}';
         
     } catch (error) {
@@ -172,245 +106,119 @@ function renderVideoForVideo(selectionInfoString, renderFolderName) {
 }
 
 /**
- * Renders the source video and mask video
- * Returns JSON string with file paths or error
+ * Renders the source video and the mask video.
  */
 function renderVideos(selectionInfoString, renderFolderName) {
     try {
         app.beginUndoGroup("Generative Fill Video Render");
-        
-        // Parse JSON manually since ExtendScript doesn't have JSON.parse
+
         var selectionInfo = eval('(' + selectionInfoString + ')');
+        var originalComp = findCompById(selectionInfo.compId);
+        if (!originalComp) throw new Error("Could not find the original composition.");
+
+        var originalLayer = findLayerByName(originalComp, selectionInfo.layerName);
+        if (!originalLayer) throw new Error("Could not find the layer: " + selectionInfo.layerName);
         
-        // Find the composition by ID
-        var originalComp = null;
-        for (var i = 1; i <= app.project.numItems; i++) {
-            if (app.project.item(i) instanceof CompItem && app.project.item(i).id === selectionInfo.compId) {
-                originalComp = app.project.item(i);
-                break;
-            }
-        }
-        
-        if (!originalComp) {
-            throw new Error("Could not find the original composition.");
-        }
-        
-        // Create render folder
-        var projectFolder = app.project.file.parent;
+        var projectFolder = getProjectFolder();
         var renderFolder = new Folder(projectFolder.fsName + "/" + renderFolderName);
-        if (!renderFolder.exists) {
-            renderFolder.create();
-        }
+        if (!renderFolder.exists) renderFolder.create();
         
-        // Use .mp4 extension for H.264 format
         var sourcePath = new File(renderFolder.fsName + "/source.mp4");
         var maskPath = new File(renderFolder.fsName + "/mask.mp4");
-        
-        $.writeln("DEBUG JSX: Render folder created: " + renderFolder.fsName);
-        
-        // Find the original layer in the current composition
-        var originalLayer = null;
-        for (var i = 1; i <= originalComp.numLayers; i++) {
-            if (originalComp.layer(i).name === selectionInfo.layerName) {
-                originalLayer = originalComp.layer(i);
-                break;
-            }
-        }
-        
-        if (!originalLayer) {
-            throw new Error("Could not find the layer: " + selectionInfo.layerName);
-        }
-        
-        // Store original mask modes
-        var maskModes = [];
-        var masks = originalLayer.property("ADBE Mask Parade");
-        for (var m = 1; m <= masks.numProperties; m++) {
-            maskModes.push(masks.property(m).maskMode);
-        }
-        
-        $.writeln("DEBUG JSX: Rendering SOURCE (with white underlay for mask area)...");
-
-        // STEP 1: Render SOURCE with a white background visible through the mask
-        var whiteUnderlay = originalComp.layers.addSolid([1, 1, 1], "Temp_White_Underlay", originalComp.width, originalComp.height, 1, originalComp.duration);
-        whiteUnderlay.moveAfter(originalLayer); // Move under the video layer
-
-        // Set masks to Subtract to punch a hole in the video layer
-        for (var m = 1; m <= masks.numProperties; m++) {
-            masks.property(m).maskMode = MaskMode.SUBTRACT;
-        }
-        
         var renderQueue = app.project.renderQueue;
-        var sourceItem = renderQueue.items.add(originalComp);
-        
-        // Configure SOURCE output
-        try {
-            sourceItem.outputModule(1).applyTemplate("H.264 - Match Render Settings - 15 Mbps");
-            $.writeln("DEBUG JSX: Using H.264 15 Mbps preset for source");
-        } catch (templateError) {
-            try {
-                sourceItem.outputModule(1).applyTemplate("H.264");
-                $.writeln("DEBUG JSX: Using generic H.264 preset for source");
-            } catch (templateError2) {
-                sourceItem.outputModule(1).format = "H.264";
-                $.writeln("DEBUG JSX: Using default H.264 format for source");
-            }
-        }
-        
-        sourceItem.outputModule(1).file = sourcePath;
-        $.writeln("DEBUG JSX: Rendering SOURCE...");
-        renderQueue.render(); 
-        
-        // Wait for render to complete by checking the render queue status
-        while (renderQueue.rendering) {
-            $.sleep(100); // Wait 100ms before checking again
-        }
-        $.writeln("DEBUG JSX: Source render queue finished.");
-        
-        // Clean up source render
-        sourceItem.remove();
 
-        // Restore original mask modes and remove the white underlay
-        if (whiteUnderlay) {
-            whiteUnderlay.remove();
+        // --- Render Source Video ---
+        var whiteUnderlay = originalComp.layers.addSolid([1, 1, 1], "Temp_White_Underlay", originalComp.width, originalComp.height, 1, originalComp.duration);
+        whiteUnderlay.moveAfter(originalLayer);
+        var originalMaskModes = setMaskModes(originalLayer, MaskMode.SUBTRACT);
+        
+        var sourceItem = renderQueue.items.add(originalComp);
+        applyH264Template(sourceItem);
+        sourceItem.outputModule(1).file = sourcePath;
+        renderAndWait(renderQueue);
+        sourceItem.remove();
+        
+        whiteUnderlay.remove();
+        restoreMaskModes(originalLayer, originalMaskModes);
+
+        // --- Render Mask Video ---
+        // Hide all existing layers first
+        var layerStates = [];
+        for (var i = 1; i <= originalComp.numLayers; i++) {
+            var layer = originalComp.layer(i);
+            layerStates.push({index: i, enabled: layer.enabled});
+            layer.enabled = false;
         }
-        for (var m = 1; m <= masks.numProperties; m++) {
-            masks.property(m).maskMode = maskModes[m-1]; // Restore original mode
-        }
         
-        $.writeln("DEBUG JSX: Rendering MASK (with levels effect)...");
+        // Create black background
+        var blackBg = originalComp.layers.addSolid([0, 0, 0], "Temp_Black_BG", originalComp.width, originalComp.height, 1, originalComp.duration);
         
-        // STEP 2: Render MASK - create black and white layers for the mask
-        // Create a black solid background
-        var blackLayer = originalComp.layers.addSolid([0, 0, 0], "Temp_Black_BG", originalComp.width, originalComp.height, 1, originalComp.duration);
-        blackLayer.moveToEnd(); // Move to bottom
+        // Create white foreground with masks copied from original layer
+        var whiteFg = originalComp.layers.addSolid([1, 1, 1], "Temp_White_FG", originalComp.width, originalComp.height, 1, originalComp.duration);
         
-        // Create a white solid that will be masked
-        var whiteLayer = originalComp.layers.addSolid([1, 1, 1], "Temp_White_FG", originalComp.width, originalComp.height, 1, originalComp.duration);
-        
-        // Copy all masks from original layer to white layer
+        // Copy masks from original layer to white solid
         var originalMasks = originalLayer.property("ADBE Mask Parade");
-        var whiteMasks = whiteLayer.property("ADBE Mask Parade");
+        var whiteMasks = whiteFg.property("ADBE Mask Parade");
         
-        if (originalMasks && originalMasks.numProperties > 0) {
-            for (var m = 1; m <= originalMasks.numProperties; m++) {
-                var originalMask = originalMasks.property(m);
-                if (originalMask) {
-                    var newMask = whiteMasks.addProperty("ADBE Mask Atom");
-                    
-                    // Copy mask properties safely
-                    try {
-                        var maskShape = originalMask.property("ADBE Mask Shape");
-                        var maskMode = originalMask.property("ADBE Mask Mode");
-                        var maskOpacity = originalMask.property("ADBE Mask Opacity");
-                        var maskFeather = originalMask.property("ADBE Mask Feather");
-                        
-                        if (maskShape) newMask.property("ADBE Mask Shape").setValue(maskShape.value);
-                        if (maskMode) newMask.property("ADBE Mask Mode").setValue(maskMode.value);
-                        if (maskOpacity) newMask.property("ADBE Mask Opacity").setValue(maskOpacity.value);
-                        if (maskFeather) newMask.property("ADBE Mask Feather").setValue(maskFeather.value);
-                    } catch (maskError) {
-                        $.writeln("DEBUG JSX: Error copying mask " + m + ": " + maskError.toString());
-                    }
-                }
+        for (var m = 1; m <= originalMasks.numProperties; m++) {
+            var originalMask = originalMasks.property(m);
+            var newMask = whiteMasks.addProperty("ADBE Mask Atom");
+            
+            try {
+                newMask.property("ADBE Mask Shape").setValue(originalMask.property("ADBE Mask Shape").value);
+                newMask.property("ADBE Mask Feather").setValue(originalMask.property("ADBE Mask Feather").value);
+                newMask.property("ADBE Mask Opacity").setValue(originalMask.property("ADBE Mask Opacity").value);
+                newMask.maskMode = MaskMode.ADD;
+            } catch (maskError) {
+                // Continue with next mask if one fails
             }
         }
-        
-        // Hide the original layer for mask render
-        originalLayer.enabled = false;
         
         // Render mask
         var maskItem = renderQueue.items.add(originalComp);
-        
-        try {
-            maskItem.outputModule(1).applyTemplate("H.264 - Match Render Settings - 15 Mbps");
-            $.writeln("DEBUG JSX: Using H.264 15 Mbps preset for mask");
-        } catch (templateError) {
-            try {
-                maskItem.outputModule(1).applyTemplate("H.264");
-                $.writeln("DEBUG JSX: Using generic H.264 preset for mask");
-            } catch (templateError2) {
-                maskItem.outputModule(1).format = "H.264";
-                $.writeln("DEBUG JSX: Using default H.264 format for mask");
-            }
-        }
-        
+        applyH264Template(maskItem);
         maskItem.outputModule(1).file = maskPath;
-        renderQueue.render();
-        
-        // Wait for render to complete by checking the render queue status
-        while (renderQueue.rendering) {
-            $.sleep(100); // Wait 100ms before checking again
-        }
-        $.writeln("DEBUG JSX: Mask render queue finished.");
-        
-        // Clean up mask render and restore original state
+        renderAndWait(renderQueue);
         maskItem.remove();
+
+        // Clean up temporary layers
+        whiteFg.remove();
+        blackBg.remove();
         
-        // Safely remove temporary layers
-        try {
-            if (whiteLayer) whiteLayer.remove(); // Remove the white foreground layer
-        } catch (e) {
-            $.writeln("DEBUG JSX: Could not remove white layer: " + e.toString());
-        }
-        
-        try {
-            if (blackLayer) blackLayer.remove(); // Remove the black background layer
-        } catch (e) {
-            $.writeln("DEBUG JSX: Could not remove black layer: " + e.toString());
-        }
-        
-        // Re-enable the original layer and restore mask modes
-        if (originalLayer) {
-            originalLayer.enabled = true;
-            var masks = originalLayer.property("ADBE Mask Parade");
-            for (var m = 1; m <= masks.numProperties; m++) {
-                masks.property(m).maskMode = maskModes[m-1]; // Restore original mode
+        // Restore original layer states
+        for (var i = 0; i < layerStates.length; i++) {
+            if (layerStates[i].index <= originalComp.numLayers) {
+                originalComp.layer(layerStates[i].index).enabled = layerStates[i].enabled;
             }
-        }
-        
-        $.writeln("DEBUG JSX: Both renders completed");
-        
-        // Check if files were created
-        if (sourcePath.exists) {
-            $.writeln("DEBUG JSX: Source file created successfully");
-        } else {
-            $.writeln("DEBUG JSX: ERROR - Source file was NOT created!");
-        }
-        
-        if (maskPath.exists) {
-            $.writeln("DEBUG JSX: Mask file created successfully");
-        } else {
-            $.writeln("DEBUG JSX: ERROR - Mask file was NOT created!");
         }
         
         app.endUndoGroup();
-        
-        // Return result as manual JSON string (escape backslashes for JSON compatibility)
+
         var sourcePathStr = sourcePath.fsName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         var maskPathStr = maskPath.fsName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         var renderFolderStr = renderFolder.fsName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        return '{"sourceVideoPath":"' + sourcePathStr + '","maskVideoPath":"' + maskPathStr + '","renderFolder":"' + renderFolderStr + '","frameRate":' + selectionInfo.frameRate + ',"compWidth":' + originalComp.width + ',"compHeight":' + originalComp.height + '}';
 
-        var resultJSON = '{"sourceVideoPath":"' + sourcePathStr + '","maskVideoPath":"' + maskPathStr + '","renderFolder":"' + renderFolderStr + '","frameRate":' + selectionInfo.frameRate + '}';
-        
-        $.writeln("DEBUG JSX: Successfully created JSON. Preparing to return.");
-        
-        // Add a final delay to ensure After Effects has stabilized before returning
-        $.sleep(1000); 
-        
-        $.writeln("DEBUG JSX: Final delay complete. Returning JSON: " + resultJSON);
-        
-        return resultJSON;
-        
     } catch (error) {
+        // Ensure cleanup happens on error
+        if (app.activeViewer) {
+            app.activeViewer.setActive();
+        }
+        if (app.project.renderQueue.numItems > 0) {
+            for (var i = app.project.renderQueue.numItems; i >= 1; i--) {
+                app.project.renderQueue.item(i).remove();
+            }
+        }
         app.endUndoGroup();
         return "ERROR:" + error.toString();
     }
 }
 
+
 /**
  * Imports a video file into the After Effects project
  */
-function importVideoFile(filePath) {
+function importVideoFile(filePath, selectionInfoString) {
     try {
         app.beginUndoGroup("Import Generative Fill Result");
         
@@ -423,7 +231,6 @@ function importVideoFile(filePath) {
         var importedItem = app.project.importFile(importOptions);
         
         app.endUndoGroup();
-        
         return "SUCCESS:Imported " + importedItem.name;
         
     } catch (error) {
@@ -433,102 +240,98 @@ function importVideoFile(filePath) {
 }
 
 /**
- * Helper function to get After Effects version info
- */
-function getAEInfo() {
-    // Return app info as manual JSON string
-    return '{"appName":"' + app.appName + '","version":"' + app.version + '","buildNumber":"' + app.buildNumber + '","language":"' + app.isoLanguage + '}';
-}
-
-/**
- * Helper function to read file as base64 for upload
- */
-function readFileAsBase64(filePath) {
-    try {
-        $.writeln("DEBUG: Attempting to read file: " + filePath);
-        var file = new File(filePath);
-        $.writeln("DEBUG: File object created, exists: " + file.exists);
-        
-        if (!file.exists) {
-            $.writeln("DEBUG: File does not exist at path: " + filePath);
-            return "ERROR:File does not exist at path: " + filePath;
-        }
-        
-        file.encoding = "BINARY";
-        file.open("r");
-        var content = file.read();
-        file.close();
-        
-        // Convert binary content to base64
-        var base64 = "";
-        var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        var bytes = [];
-        
-        for (var i = 0; i < content.length; i++) {
-            bytes.push(content.charCodeAt(i));
-        }
-        
-        for (var i = 0; i < bytes.length; i += 3) {
-            var b1 = bytes[i];
-            var b2 = bytes[i + 1] || 0;
-            var b3 = bytes[i + 2] || 0;
-            
-            var encoded = (b1 << 16) | (b2 << 8) | b3;
-            
-            base64 += chars[(encoded >> 18) & 63];
-            base64 += chars[(encoded >> 12) & 63];
-            base64 += i + 1 < bytes.length ? chars[(encoded >> 6) & 63] : "=";
-            base64 += i + 2 < bytes.length ? chars[encoded & 63] : "=";
-        }
-        
-        return base64;
-        
-    } catch (error) {
-        return "ERROR:" + error.toString();
-    }
-}
-
-/**
- * Helper function to save file from URL directly
+ * Helper function to save file from URL directly using system commands
  */
 function saveFileFromUrl(url, filePath) {
     try {
-        $.writeln("DEBUG: saveFileFromUrl called for: " + filePath);
-        $.writeln("DEBUG: URL: " + url);
-        
-        // Create the target file
         var targetFile = new File(filePath);
-        
-        // Create directory if it doesn't exist
         var parentFolder = targetFile.parent;
-        if (!parentFolder.exists) {
-            parentFolder.create();
-        }
+        if (!parentFolder.exists) parentFolder.create();
         
-        // Use system command to download the file directly
         var command;
         if ($.os.indexOf("Windows") !== -1) {
-            // Windows command using .NET WebClient for better reliability
             command = 'powershell -Command "(New-Object System.Net.WebClient).DownloadFile(\'' + url + '\', \'' + targetFile.fsName + '\')"';
         } else {
-            // macOS/Linux command using curl
             command = 'curl -L "' + url + '" -o "' + targetFile.fsName + '"';
         }
         
-        $.writeln("DEBUG: Executing command: " + command);
-        var result = system.callSystem(command);
-        $.writeln("DEBUG: Command result: " + result);
+        system.callSystem(command);
         
-        // Check if file was created successfully
         if (targetFile.exists && targetFile.length > 0) {
-            $.writeln("DEBUG: File downloaded successfully, size: " + targetFile.length);
             return "SUCCESS:File downloaded to " + targetFile.fsName;
         } else {
-            throw new Error("File was not created or is empty");
+            throw new Error("File download failed or file is empty.");
         }
-        
     } catch (error) {
-        $.writeln("DEBUG: Error in saveFileFromUrl: " + error.toString());
         return "ERROR:" + error.toString();
     }
+}
+
+// --- UTILITY FUNCTIONS ---
+
+function findCompById(id) {
+    for (var i = 1; i <= app.project.numItems; i++) {
+        if (app.project.item(i) instanceof CompItem && app.project.item(i).id === id) {
+            return app.project.item(i);
+        }
+    }
+    return null;
+}
+
+function findLayerByName(comp, name) {
+    for (var i = 1; i <= comp.numLayers; i++) {
+        if (comp.layer(i).name === name) {
+            return comp.layer(i);
+        }
+    }
+    return null;
+}
+
+function getProjectFolder() {
+    if (app.project.file && app.project.file.path !== "") {
+        return app.project.file.parent;
+    }
+    alert("Please save your project first before running the script.");
+    throw new Error("Project not saved.");
+}
+
+
+function applyH264Template(renderItem) {
+    try {
+        renderItem.outputModule(1).applyTemplate("H.264 - Match Render Settings - 15 Mbps");
+    } catch (e) {
+        try {
+            renderItem.outputModule(1).applyTemplate("H.264");
+        } catch (e2) {
+            renderItem.outputModule(1).format = "H.264";
+        }
+    }
+}
+
+function renderAndWait(renderQueue) {
+    renderQueue.render();
+    while (renderQueue.rendering) {
+        $.sleep(200);
+    }
+}
+
+function setMaskModes(layer, mode) {
+    var originalModes = [];
+    var masks = layer.property("ADBE Mask Parade");
+    for (var i = 1; i <= masks.numProperties; i++) {
+        originalModes.push(masks.property(i).maskMode);
+        masks.property(i).maskMode = mode;
+    }
+    return originalModes;
+}
+
+function restoreMaskModes(layer, modes) {
+    var masks = layer.property("ADBE Mask Parade");
+    for (var i = 0; i < modes.length; i++) {
+        masks.property(i + 1).maskMode = modes[i];
+    }
+}
+
+function getAEInfo() {
+    return '{"appName":"' + app.appName + '","version":"' + app.version + '","buildNumber":"' + app.buildNumber + '","language":"' + app.isoLanguage + '}';
 }

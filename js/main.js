@@ -1,8 +1,6 @@
 // CEP Interface
 var csInterface = new CSInterface();
 
-
-
 // UI Elements
 var generateBtn = document.getElementById("generate-btn");
 var apiKeyInput = document.getElementById("apiKey");
@@ -279,11 +277,10 @@ function handleJobSubmission(err, result, apiKey, renderResult, modelUrl) {
         return;
     }
 
-    // Handle nested data object for video-to-video model
     var videoData = result.data ? result.data : result;
 
     if (videoData && videoData.video && videoData.video.url) {
-        downloadAndImportResult(videoData.video.url, renderResult.renderFolder, renderResult);
+        downloadAndImportResult(videoData.video.url, renderResult);
     } else if (result && result.request_id) {
         pollJobStatus(result.request_id, apiKey, renderResult, modelUrl);
     } else {
@@ -315,7 +312,7 @@ function pollJobStatus(requestId, apiKey, renderResult, modelUrl) {
             
             if (result && result.status === 'COMPLETED' && result.video && result.video.url) {
                 clearInterval(pollInterval);
-                downloadAndImportResult(result.video.url, renderResult.renderFolder, renderResult);
+                downloadAndImportResult(result.video.url, renderResult);
             } else if (result && result.status === 'FAILED') {
                 clearInterval(pollInterval);
                 updateStatus("AI processing failed!");
@@ -327,68 +324,28 @@ function pollJobStatus(requestId, apiKey, renderResult, modelUrl) {
     }, 5000); // Poll every 5 seconds
 }
 
-function downloadAndImportResult(videoUrl, renderFolder, renderResult) {
-    addDebugLog("Starting download and import process");
-    addDebugLog("Video URL: " + videoUrl);
-    addDebugLog("Render folder: " + renderFolder);
-    
+function downloadAndImportResult(videoUrl, renderResult) {
     updateStatus("Downloading result...");
     showProgress(true, 85);
     
-    var outputPath = renderFolder + "/fal_inpainted_result.mp4";
-    addDebugLog("Output path: " + outputPath);
-    
-    // Use official FAL.ai client for download
-    var bundledClient = window.FalAIClientBundled && window.FalAIClientBundled.default ? window.FalAIClientBundled.default : window.FalAIClientBundled;
-    
-    if (!bundledClient) {
-        addDebugLog("ERROR: Bundled client not available for download");
-        updateStatus("Download failed!");
-        showAlert("Download Error: FAL.ai client not available");
-        generateBtn.disabled = false;
-        showProgress(false);
-        return;
-    }
-    
-    addDebugLog("Starting download with bundled client...");
-    bundledClient.downloadFile(videoUrl, outputPath, function(err) {
-        addDebugLog("Download callback received");
-        addDebugLog("Download error: " + (err || "none"));
-        
-        if (err) {
-            addDebugLog("Download failed: " + err);
-            updateStatus("Download failed!");
-            
-            // Show custom modal with download link
-            showFallbackModal(videoUrl);
-            
-            generateBtn.disabled = false;
-            showProgress(false);
+    var outputPath = renderResult.renderFolder.replace(/\\/g, '/') + "/fal_inpainted_result.mp4";
+    var downloadScript = "saveFileFromUrl('" + videoUrl + "', '" + outputPath + "')";
+
+    csInterface.evalScript(downloadScript, function(downloadResult) {
+        if (handleError(downloadResult)) {
+            showFallbackModal(videoUrl); // Show fallback if ExtendScript download fails
             return;
         }
-        
-        addDebugLog("Download successful, starting import...");
+
         updateStatus("Importing into After Effects...");
         showProgress(true, 95);
         
-        // Pass the original renderResult (which includes comp info) to the import script
         var selectionString = JSON.stringify(renderResult);
         var importScript = "importVideoFile('" + outputPath + "', '" + selectionString + "')";
-        addDebugLog("Calling ExtendScript: " + importScript);
         
-        csInterface.evalScript(importScript, function(result) {
-            addDebugLog("Import ExtendScript result: " + result);
-            
-            if (result.startsWith("ERROR:")) {
-                addDebugLog("Import failed: " + result.substring(6));
-                updateStatus("Import failed!");
-                showAlert("Import Error: " + result.substring(6));
-                generateBtn.disabled = false;
-                showProgress(false);
-                return;
-            }
-            
-            addDebugLog("Import successful!");
+        csInterface.evalScript(importScript, function(importResult) {
+            if (handleError(importResult)) return;
+
             updateStatus("Process complete!");
             showProgress(false);
             generateBtn.disabled = false;
@@ -405,8 +362,6 @@ function checkAfterEffectsStatus() {
         } else {
             var aeInfo = JSON.parse(result);
             updateStatus("Connected to " + aeInfo.appName + " - Ready to use");
-            
-            // Check current selection
             checkCurrentSelection();
         }
     });
@@ -436,11 +391,8 @@ function checkCurrentSelection() {
     });
 }
 
-// Remove the separate check selection button - it's now integrated in the Generate button
-
 // Initialize plugin
 csInterface.addEventListener("com.adobe.AfterEffects", function(event) {
-    console.log("After Effects event:", event);
     checkCurrentSelection();
 });
 
@@ -452,7 +404,6 @@ function addDebugLog(message) {
     debugLogs.push(logMessage);
     console.log("DEBUG:", message);
     
-    // Update debug logs display
     var logContent = document.getElementById("log-content");
     if (logContent) {
         logContent.textContent = debugLogs.join("\n");
@@ -466,13 +417,11 @@ function openDebugConsole() {
     addDebugLog("Plugin path: " + csInterface.getSystemPath(SystemPath.EXTENSION));
     addDebugLog("Ready to show debug messages...");
     
-    // Show the debug logs section
     var debugSection = document.getElementById("debug-logs");
     if (debugSection) {
         debugSection.style.display = "block";
     }
     
-    // Show alert with instructions
     showAlert("Debug Console Activated!\n\n" +
               "Debug logs will now appear directly in the plugin below.\n" +
               "Click Generate to see what happens step by step.\n\n" +
@@ -528,5 +477,4 @@ document.addEventListener("DOMContentLoaded", function() {
 console.log("Generative Fill Video Plugin by Lovis Odin - Initialized");
 setTimeout(function() {
     checkAfterEffectsStatus();
-    // No separate check button anymore - checking is integrated in Generate
 }, 1000);
