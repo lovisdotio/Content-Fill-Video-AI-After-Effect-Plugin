@@ -22,12 +22,16 @@ var framesPerSecondInput = document.getElementById("frames_per_second");
 
 // Event listener for model selection
 modelSelection.addEventListener("change", function() {
+    var maskWarning = document.getElementById("mask-warning");
+    
     if (modelSelection.value === "video-to-video") {
         generativeFillOptions.style.display = "none";
         videoToVideoOptions.style.display = "block";
+        if (maskWarning) maskWarning.style.display = "none";
     } else {
         generativeFillOptions.style.display = "block";
         videoToVideoOptions.style.display = "none";
+        if (maskWarning) maskWarning.style.display = "block";
     }
 });
 
