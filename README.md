@@ -1,6 +1,6 @@
 # 🎬 AI Video Inpainting Plugin for After Effects
 
-[Voir la vidéo de démonstration](./content-fill-video.mp4)
+![Plugin Status](https://img.shields.io/badge/Status-Free%20&%20Working-green)
 
 ** AI-powered video inpainting plugin - Content Fill **
 
