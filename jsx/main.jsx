@@ -81,7 +81,15 @@ function renderVideoForVideo(selectionInfoString, renderFolderName) {
         
         var sourcePath = new File(renderFolder.fsName + "/source_v2v.mp4");
         
-        var originalStates = setLayerStates(originalComp, selectionInfo.layerName, true); // Keep only selected layer
+        // Hide all layers except the selected one
+        var layerStates = [];
+        for (var i = 1; i <= originalComp.numLayers; i++) {
+            var layer = originalComp.layer(i);
+            layerStates.push({index: i, enabled: layer.enabled});
+            if (layer.name !== selectionInfo.layerName) {
+                layer.enabled = false;
+            }
+        }
 
         var renderQueue = app.project.renderQueue;
         var sourceItem = renderQueue.items.add(originalComp);
@@ -91,7 +99,12 @@ function renderVideoForVideo(selectionInfoString, renderFolderName) {
         renderAndWait(renderQueue);
         sourceItem.remove();
         
-        restoreLayerStates(originalComp, originalStates);
+        // Restore original layer states
+        for (var i = 0; i < layerStates.length; i++) {
+            if (layerStates[i].index <= originalComp.numLayers) {
+                originalComp.layer(layerStates[i].index).enabled = layerStates[i].enabled;
+            }
+        }
         
         app.endUndoGroup();
         
@@ -172,6 +185,20 @@ function renderVideos(selectionInfoString, renderFolderName) {
             } catch (maskError) {
                 // Continue with next mask if one fails
             }
+        }
+        
+        // Copy transform properties from original layer to white solid
+        var originalTransform = originalLayer.property("ADBE Transform Group");
+        var whiteTransform = whiteFg.property("ADBE Transform Group");
+        
+        try {
+            whiteTransform.property("ADBE Anchor Point").setValue(originalTransform.property("ADBE Anchor Point").value);
+            whiteTransform.property("ADBE Position").setValue(originalTransform.property("ADBE Position").value);
+            whiteTransform.property("ADBE Scale").setValue(originalTransform.property("ADBE Scale").value);
+            whiteTransform.property("ADBE Rotate Z").setValue(originalTransform.property("ADBE Rotate Z").value);
+            whiteTransform.property("ADBE Opacity").setValue(100); // Force full opacity
+        } catch (transformError) {
+            // Continue if transform copying fails
         }
         
         // Render mask
