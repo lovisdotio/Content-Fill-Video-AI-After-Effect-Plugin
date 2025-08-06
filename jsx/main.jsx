@@ -5,7 +5,7 @@
  * Validates the current selection in After Effects
  * Returns JSON string with selection info or error
  */
-function validateSelection() {
+function validateSelectionForInpaint() {
     try {
         app.beginUndoGroup("Validate Selection");
         
@@ -56,6 +56,114 @@ function validateSelection() {
     
     // ExtendScript doesn't have JSON.stringify, so we build the string manually
     return '{"compName":"' + comp.name + '","layerName":"' + layer.name + '","compId":' + comp.id + ',"layerId":' + layer.id + ',"compWidth":' + comp.width + ',"compHeight":' + comp.height + ',"compDuration":' + comp.duration + ',"frameRate":' + comp.frameRate + '}';
+        
+    } catch (error) {
+        app.endUndoGroup();
+        return "ERROR:" + error.toString();
+    }
+}
+
+/**
+ * Validates the current selection for video-to-video mode
+ * Returns JSON string with selection info or error
+ */
+function validateSelectionForVideo() {
+    try {
+        app.beginUndoGroup("Validate Selection for Video");
+        
+        var comp = app.project.activeItem;
+        if (!(comp instanceof CompItem)) {
+            throw new Error("Please select a composition.");
+        }
+        
+        var selectedLayers = comp.selectedLayers;
+        if (selectedLayers.length !== 1) {
+            throw new Error("Please select exactly one layer.");
+        }
+        
+        var layer = selectedLayers[0];
+        
+        app.endUndoGroup();
+        
+        return '{"compName":"' + comp.name + '","layerName":"' + layer.name + '","compId":' + comp.id + ',"layerId":' + layer.id + ',"compWidth":' + comp.width + ',"compHeight":' + comp.height + ',"compDuration":' + comp.duration + ',"frameRate":' + comp.frameRate + '}';
+        
+    } catch (error) {
+        app.endUndoGroup();
+        return "ERROR:" + error.toString();
+    }
+}
+
+/**
+ * Renders only the selected layer for video-to-video
+ * Returns JSON string with file path or error
+ */
+function renderVideoForVideo(selectionInfoString, renderFolderName) {
+    try {
+        app.beginUndoGroup("Render for Video-to-Video");
+        
+        var selectionInfo = eval('(' + selectionInfoString + ')');
+        
+        var originalComp = null;
+        for (var i = 1; i <= app.project.numItems; i++) {
+            if (app.project.item(i) instanceof CompItem && app.project.item(i).id === selectionInfo.compId) {
+                originalComp = app.project.item(i);
+                break;
+            }
+        }
+        
+        if (!originalComp) {
+            throw new Error("Could not find the original composition.");
+        }
+        
+        var projectFolder = app.project.file.parent;
+        var renderFolder = new Folder(projectFolder.fsName + "/" + renderFolderName);
+        if (!renderFolder.exists) {
+            renderFolder.create();
+        }
+        
+        var sourcePath = new File(renderFolder.fsName + "/source_v2v.mp4");
+        
+        var originalLayer = null;
+        for (var i = 1; i <= originalComp.numLayers; i++) {
+            if (originalComp.layer(i).name === selectionInfo.layerName) {
+                originalLayer = originalComp.layer(i);
+            } else {
+                originalComp.layer(i).enabled = false;
+            }
+        }
+        
+        if (!originalLayer) {
+            throw new Error("Could not find the layer: " + selectionInfo.layerName);
+        }
+        
+        var renderQueue = app.project.renderQueue;
+        var sourceItem = renderQueue.items.add(originalComp);
+        
+        try {
+            sourceItem.outputModule(1).applyTemplate("H.264 - Match Render Settings - 15 Mbps");
+        } catch (e) {
+            sourceItem.outputModule(1).format = "H.264";
+        }
+        
+        sourceItem.outputModule(1).file = sourcePath;
+        renderQueue.render(); 
+        
+        while (renderQueue.rendering) {
+            $.sleep(100);
+        }
+        
+        sourceItem.remove();
+        
+        for (var i = 1; i <= originalComp.numLayers; i++) {
+            originalComp.layer(i).enabled = true;
+        }
+        
+        app.endUndoGroup();
+        
+        var sourcePathStr = sourcePath.fsName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        var renderFolderStr = renderFolder.fsName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+
+        return '{"sourceVideoPath":"' + sourcePathStr + '","renderFolder":"' + renderFolderStr + '","frameRate":' + selectionInfo.frameRate + '}';
         
     } catch (error) {
         app.endUndoGroup();
@@ -400,8 +508,8 @@ function saveFileFromUrl(url, filePath) {
         // Use system command to download the file directly
         var command;
         if ($.os.indexOf("Windows") !== -1) {
-            // Windows command
-            command = 'powershell -Command "Invoke-WebRequest -Uri \'' + url + '\' -OutFile \'' + targetFile.fsName + '\'"';
+            // Windows command using .NET WebClient for better reliability
+            command = 'powershell -Command "(New-Object System.Net.WebClient).DownloadFile(\'' + url + '\', \'' + targetFile.fsName + '\')"';
         } else {
             // macOS/Linux command using curl
             command = 'curl -L "' + url + '" -o "' + targetFile.fsName + '"';

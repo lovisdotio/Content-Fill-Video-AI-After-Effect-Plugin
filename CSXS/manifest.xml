@@ -2,9 +2,9 @@
 <ExtensionManifest Version="5.0" ExtensionBundleId="com.lovisodin.generativefill" ExtensionBundleVersion="1.0.0" 
                   ExtensionBundleName="Generative Fill Video" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <AuthorName>Lovis Odin</AuthorName>
-  <Contact mailto="contact@lovisodin.com"/>
-  <Legal href="https://lovisodin.com/legal"/>
-  <Abstract href="https://lovisodin.com/generative-fill-video"/>
+  <Contact mailto="lovisodin@gmail.com"/>
+  <Legal href="https://lovis.io/legal"/>
+  <Abstract href="https://lovis.io/generative-fill-video"/>
   
   <ExtensionList>
     <Extension Id="com.lovisodin.generativefill.panel" Version="1.0.0"/>

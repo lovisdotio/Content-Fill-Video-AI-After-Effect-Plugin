@@ -102,18 +102,55 @@ const FalAIClientBundled = {
             callback(error);
         });
     },
+
+    submitVideoToVideoJob: function(params, callback) {
+        console.log('DEBUG: Submitting job to wan-vace-2-video-to-video via official client');
+        
+        this.configure(params.apiKey);
+        
+        const inputData = {
+            prompt: params.prompt,
+            video_url: params.video_url,
+            strength: params.strength,
+            num_frames: params.num_frames,
+            frames_per_second: params.frames_per_second,
+            negative_prompt: params.negative_prompt,
+            resolution: params.resolution,
+            num_inference_steps: params.num_inference_steps,
+        };
+        
+        console.log('DEBUG: Sending video-to-video request with input:', JSON.stringify(inputData));
+        
+        fal.subscribe("fal-ai/wan/v2.2-a14b/video-to-video", {
+            input: inputData,
+            logs: true,
+            onQueueUpdate: (update) => {
+                if (update.status === "IN_PROGRESS") {
+                    console.log('DEBUG: Job in progress:', update.logs?.map(log => log.message).join(', '));
+                }
+            }
+        })
+        .then(result => {
+            console.log('DEBUG: Job completed successfully:', result);
+            callback(null, result);
+        })
+        .catch(error => {
+            console.log('DEBUG: Job submission failed:', error.message);
+            callback(error);
+        });
+    },
     
     /**
      * Check job status using official client
      */
-    checkJobStatus: function(requestId, apiKey, callback) {
-        console.log('DEBUG: Checking job status via official client:', requestId);
+    checkJobStatus: function(requestId, apiKey, modelUrl, callback) {
+        console.log('DEBUG: Checking job status via official client:', requestId, 'for model:', modelUrl);
         
         // Configure the client
         this.configure(apiKey);
         
-        // Check status using official client (wan-vace model)
-        fal.queue.status("fal-ai/wan-vace", {
+        // Check status using official client
+        fal.queue.status(modelUrl, {
             requestId: requestId,
             logs: true
         })

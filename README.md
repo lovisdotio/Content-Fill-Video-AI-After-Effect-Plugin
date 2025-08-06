@@ -1,5 +1,7 @@
 # 🎬 AI Video Inpainting Plugin for After Effects
 
+[Voir la vidéo de démonstration](./content-fill-video.mp4)
+
 **FREE AI-powered video inpainting plugin - Because Adobe was taking too long! 🤷‍♂️**
 
 Remove or replace objects in videos using cutting-edge AI technology, directly in After Effects.
@@ -10,12 +12,25 @@ Remove or replace objects in videos using cutting-edge AI technology, directly i
 
 ## ✨ Features
 
-- 🎨 **AI Video Inpainting**: Remove or replace objects in videos using AI
-- 🎭 **Mask-Based**: Uses After Effects masks for precise control
-- 🚀 **Fast Processing**: Powered by fal.ai's wan-vace model
-- 🎬 **Direct Integration**: Works as a native After Effects panel
-- ✨ **Free to Use**: No subscription, no hidden costs
-- 🔄 **Auto-Import**: Results automatically added to your project
+- 🎨 **AI Video Inpainting & Transformation**: Remove, replace, or completely transform objects in your videos.
+- 🎭 **Two Powerful AI Models**: Choose between precise, mask-based inpainting or creative video-to-video transformation.
+- 🚀 **Fast & Direct**: Powered by fal.ai and integrated directly into After Effects.
+- ✨ **Free to Use**: No subscription, no hidden costs (API usage fees from fal.ai apply).
+- 🔄 **Auto-Import**: Results are automatically added to your project.
+
+## 🤖 AI Models
+
+This plugin offers two distinct AI models to suit your creative needs:
+
+1.  **Generative Fill (Inpaint)**
+    -   **Model**: `wan-vace` (the original model)
+    -   **How it works**: Uses a **mask and a text prompt**. It replaces only the masked area of your video based on your description.
+    -   **Best for**: Removing objects, replacing specific items, or making targeted changes.
+
+2.  **Video to Video**
+    -   **Model**: `wan-vace-2-video-to-video`
+    -   **How it works**: Uses **only a text prompt** to transform the *entire* video layer. It does not require a mask.
+    -   **Best for**: Creative stylization, changing the entire scene, or generating completely new video content from a source video.
 
 ## ⚠️ Current Limitations (But Hey, It's Free!)
 
@@ -79,27 +94,22 @@ For the plugin to work, you MUST enable a specific setting in After Effects:
 
 ## 🎯 How to Use
 
-1. **Get Your API Key**
-   - Sign up at [fal.ai](https://fal.ai) (free credits included!)
-   - Copy your API key from the dashboard
+1. **Open the Plugin**
+   - In After Effects, go to `Window > Extensions > Generative Fill Video - Lovis Odin`.
+   - Paste your `FAL_KEY` into the API key field.
 
-2.  **Enable Permissions**
-    -   In After Effects, go to `Preferences > Scripting & Expressions`
-    -   Check `Allow Scripts to Write Files and Access Network`
+2. **Choose Your Model**
+   - **For Generative Fill (Inpaint):**
+     - Select a video layer.
+     - Create a **mask** around the area you want to change.
+     - Write a text prompt describing the change.
+   - **For Video to Video:**
+     - Select a video layer (no mask needed).
+     - Write a text prompt describing the new scene you want to create.
 
-3. **In After Effects:**
-   - **IMPORTANT:** Save your project first!
-   - Open: `Window > Extensions > Generative Fill Video - Lovis Odin`
-   - Paste your API key in the plugin
-   - Select a video layer with a mask
-   - Write a descriptive prompt (e.g., "remove the person", "replace with a cat")
-   - Click "Generate Video"
-
-3. **Wait for Magic** ✨
-   - Processing takes 2-5 minutes
-   - Progress updates in real-time
-   - Result automatically imports to your project
-   - If download fails, you get a manual download link
+3. **Generate!**
+   - Click the "Generate" button and wait for the AI to process your video.
+   - The result will be automatically imported into your project.
 
 ## 💡 Pro Tips
 
@@ -180,8 +190,8 @@ Sometimes when you need something done, you just build it yourself. This plugin 
 
 - 🐛 **Issues**: [GitHub Issues](https://github.com/your-username/your-repo/issues)
 - 💬 **Questions**: Create a GitHub discussion
-- 🐦 **Updates**: Follow [@lovisodin](https://twitter.com/lovisodin)
-- 📧 **Business**: contact@lovisodin.com
+- 🐦 **Updates**: Follow [@odinlovis](https://twitter.com/odinlovis)
+- 📧 **Business**: lovisodin@gmail.com
 
 ## 📄 License
 
@@ -193,4 +203,4 @@ This plugin is free to use. The fal.ai API has its own terms of service.
 
 **Made with ❤️ and a healthy dose of impatience with Adobe's AI timeline**
 
-*Powered by [fal.ai](https://fal.ai) • Created by [Lovis Odin](https://lovisodin.com)*
+*Powered by [fal.ai](https://fal.ai) • Created by [Lovis Odin](https://lovis.io)*

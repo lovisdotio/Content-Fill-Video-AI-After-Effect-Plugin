@@ -37,8 +37,37 @@
         <hr>
 
         <div class="form-group">
-            <label for="prompt">Prompt</label>
-            <textarea id="prompt" rows="3" placeholder="A cinematic shot of a boat in the ocean..."></textarea>
+            <label for="modelSelection">AI Model</label>
+            <select id="modelSelection">
+    <option value="generative-fill">Generative Fill (Mask + Prompt) - Wan v2.1</option>
+    <option value="video-to-video">Video to Video (Prompt Only) - Wan v2.2</option>
+</select>
+        </div>
+
+        <div id="generative-fill-options">
+            <div class="form-group">
+                <label for="prompt">Prompt</label>
+                <textarea id="prompt" rows="3" placeholder="A cinematic shot of a boat in the ocean..."></textarea>
+            </div>
+        </div>
+
+        <div id="video-to-video-options" style="display: none;">
+            <div class="form-group">
+                <label for="videoPrompt">Prompt</label>
+                <textarea id="videoPrompt" rows="3" placeholder="A low-angle medium shot of a cat..."></textarea>
+            </div>
+            <div class="form-group-inline">
+                <label for="strength">Strength</label>
+                <input type="number" id="strength" value="0.9" min="0" max="1" step="0.1">
+            </div>
+            <div class="form-group-inline">
+                <label for="num_frames">Number of Frames</label>
+                <input type="number" id="num_frames" value="81" min="81" max="121">
+            </div>
+            <div class="form-group-inline">
+                <label for="frames_per_second">FPS</label>
+                <input type="number" id="frames_per_second" value="16" min="4" max="60">
+            </div>
         </div>
 
         <details>
@@ -81,8 +110,8 @@
                 <li><strong>SAVE YOUR COMPOSITION</strong> before processing - this plugin modifies your project</li>
                 <li><strong>24 FPS ONLY</strong> - Other frame rates are not supported</li>
                 <li><strong>240 FRAMES MAX</strong> - Longer compositions will be truncated</li>
-                <li><strong>ESTIMATED COST: ~$0.20 / 81 frames</strong> - Check fal.ai for current pricing</li>
-                <li><strong>480p OUTPUT</strong> - Resolution limited due to fal.ai technical constraints</li>
+                <li><strong>ESTIMATED COST: Varies from ~$0.02 to ~$0.20 per second.</strong> Check <a href="https://fal.ai" target="_blank">fal.ai</a> for current pricing.</li>
+                <li><strong>OUTPUT RESOLUTION: Varies by model and settings.</strong> May not match your composition settings.</li>
             </ul>
         </div>
 

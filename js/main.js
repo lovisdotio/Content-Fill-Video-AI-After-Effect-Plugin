@@ -13,6 +13,26 @@ var inferenceStepsInput = document.getElementById("num_inference_steps");
 var statusText = document.getElementById("status-text");
 var progressBar = document.getElementById("progress-bar");
 
+// New UI Elements for model selection
+var modelSelection = document.getElementById("modelSelection");
+var generativeFillOptions = document.getElementById("generative-fill-options");
+var videoToVideoOptions = document.getElementById("video-to-video-options");
+var videoPromptInput = document.getElementById("videoPrompt");
+var strengthInput = document.getElementById("strength");
+var numFramesInput = document.getElementById("num_frames");
+var framesPerSecondInput = document.getElementById("frames_per_second");
+
+// Event listener for model selection
+modelSelection.addEventListener("change", function() {
+    if (modelSelection.value === "video-to-video") {
+        generativeFillOptions.style.display = "none";
+        videoToVideoOptions.style.display = "block";
+    } else {
+        generativeFillOptions.style.display = "block";
+        videoToVideoOptions.style.display = "none";
+    }
+});
+
 // Helper function to show alerts
 function showAlert(message) {
     alert(message);
@@ -38,67 +58,47 @@ function showProgress(show, value) {
 generateBtn.addEventListener("click", function() {
     generateBtn.disabled = true;
     showProgress(false);
-    
+
     try {
-        // Get user inputs
         var apiKey = apiKeyInput.value;
         if (!apiKey) {
             throw new Error("Please provide your FAL API Key.");
         }
-        
+
+        var selectedModel = modelSelection.value;
         var params = {
-            prompt: promptInput.value || "A cinematic shot of a boat in the ocean",
+            apiKey: apiKey,
             negative_prompt: negativePromptInput.value || "low quality, blur, watermark",
             resolution: resolutionSelect.value,
             num_inference_steps: parseInt(inferenceStepsInput.value, 10) || 30,
-            apiKey: apiKey
         };
-        
+
+        var validationScript;
+        if (selectedModel === "video-to-video") {
+            params.prompt = videoPromptInput.value || "A low-angle medium shot of a cat...";
+            params.strength = parseFloat(strengthInput.value) || 0.9;
+            params.num_frames = parseInt(numFramesInput.value, 10) || 81;
+            params.frames_per_second = parseInt(framesPerSecondInput.value, 10) || 16;
+            validationScript = "validateSelectionForVideo()";
+        } else {
+            params.prompt = promptInput.value || "A cinematic shot of a boat in the ocean";
+            validationScript = "validateSelectionForInpaint()";
+        }
+
         updateStatus("Checking selection...");
-        addDebugLog("Starting selection validation...");
-        
-        // Call ExtendScript to validate selection
-        csInterface.evalScript("validateSelection()", function(result) {
-            addDebugLog("validateSelection() returned: " + result);
+        csInterface.evalScript(validationScript, function(result) {
+            if (handleError(result)) return;
 
-            var hasError = false;
-            var errorMessage = "";
-
-            if (!result) {
-                hasError = true;
-                errorMessage = "No response from After Effects. Please try again.";
-                addDebugLog("ERROR: " + errorMessage);
-            } else if (result.startsWith("ERROR:")) {
-                hasError = true;
-                var errorText = result.substring(6);
-                addDebugLog("ExtendScript error: " + errorText);
-                if (errorText.includes("select a composition")) {
-                    errorMessage = "Please open a composition in After Effects.";
-                } else if (errorText.includes("select exactly one layer")) {
-                    errorMessage = "Please select exactly one layer to continue.";
-                } else if (errorText.includes("no masks")) {
-                    errorMessage = "The selected layer has no masks. Please add a mask.";
-                } else {
-                    errorMessage = errorText;
-                }
-            }
-
-            if (hasError) {
-                updateStatus("Error: " + errorMessage);
-                showAlert(errorMessage);
-                generateBtn.disabled = false; // Re-enable the button
-                return; // Stop execution
-            }
-            
-            addDebugLog("Parsing selection info...");
             var selectionInfo = JSON.parse(result);
-            addDebugLog("Selection info parsed: " + JSON.stringify(selectionInfo));
             updateStatus("Selection valid: " + selectionInfo.compName);
-            
-            // Start the rendering process
-            startRendering(selectionInfo, params);
+
+            if (selectedModel === "video-to-video") {
+                startVideoRender(selectionInfo, params);
+            } else {
+                startInpaintRender(selectionInfo, params);
+            }
         });
-        
+
     } catch (error) {
         console.error("Plugin Error:", error);
         updateStatus("Error!");
@@ -107,188 +107,204 @@ generateBtn.addEventListener("click", function() {
     }
 });
 
-function startRendering(selectionInfo, params) {
-    addDebugLog("Starting render process...");
+function handleError(result) {
+    if (!result || result.startsWith("ERROR:")) {
+        var errorMessage = result ? result.substring(6) : "No response from After Effects.";
+        updateStatus("Error: " + errorMessage);
+        showAlert(errorMessage);
+        generateBtn.disabled = false;
+        return true;
+    }
+    return false;
+}
+
+function startInpaintRender(selectionInfo, params) {
     updateStatus("Rendering source and mask videos...");
     showProgress(true, 10);
-    
     var renderFolderName = "temp_fal_renders_" + Date.now();
-    var paramsString = JSON.stringify(params);
     var selectionString = JSON.stringify(selectionInfo);
-    
-    addDebugLog("Render folder: " + renderFolderName);
-    addDebugLog("Calling renderVideos() ExtendScript function...");
-    
-    // Call ExtendScript to render videos
+
     csInterface.evalScript(
-        "renderVideos('" + selectionString + "', '" + renderFolderName + "')", 
+        "renderVideos('" + selectionString + "', '" + renderFolderName + "')",
         function(result) {
-            addDebugLog("renderVideos() returned: " + result);
-            
-            if (result.startsWith("ERROR:")) {
-                addDebugLog("Render error: " + result.substring(6));
-                updateStatus("Render failed!");
-                showAlert("Render Error: " + result.substring(6));
-                generateBtn.disabled = false;
-                showProgress(false);
-                return;
-            }
-            
-            addDebugLog("Parsing render result JSON...");
-            try {
-                var renderResult = JSON.parse(result);
-                addDebugLog("Render result parsed successfully: " + JSON.stringify(renderResult));
-                updateStatus("Render complete! Processing with AI...");
-                showProgress(true, 30);
-                
-                // Start FAL.ai processing
-                addDebugLog("Starting FAL.ai processing...");
-                processWithFalAI(renderResult, params);
-            } catch (jsonError) {
-                addDebugLog("JSON parse error: " + jsonError.message);
-                addDebugLog("Raw result was: " + result);
-                updateStatus("JSON Parse Error!");
-                showAlert("Error parsing render result: " + jsonError.message + "\n\nRaw result: " + result);
-                generateBtn.disabled = false;
-                showProgress(false);
-                return;
-            }
+            if (handleError(result)) return;
+            var renderResult = JSON.parse(result);
+            updateStatus("Render complete! Processing with AI...");
+            showProgress(true, 30);
+            processWithFalAIInpaint(renderResult, params);
         }
     );
 }
 
-function processWithFalAI(renderResult, params) {
-    updateStatus("Preparing to upload source video...");
+function startVideoRender(selectionInfo, params) {
+    updateStatus("Rendering source video...");
+    showProgress(true, 10);
+    var renderFolderName = "temp_fal_renders_" + Date.now();
+    var selectionString = JSON.stringify(selectionInfo);
+
+    csInterface.evalScript(
+        "renderVideoForVideo('" + selectionString + "', '" + renderFolderName + "')",
+        function(result) {
+            if (handleError(result)) return;
+            var renderResult = JSON.parse(result);
+            updateStatus("Render complete! Processing with AI...");
+            showProgress(true, 30);
+            processWithFalAIVideoToVideo(renderResult, params);
+        }
+    );
+}
+
+function processWithFalAIInpaint(renderResult, params) {
+    updateStatus("Uploading source video...");
     showProgress(true, 40);
 
-    // Normalize paths for the uploader (replace backslashes with forward slashes)
     var sourceVideoPath = renderResult.sourceVideoPath.replace(/\\/g, "/");
     var maskVideoPath = renderResult.maskVideoPath.replace(/\\/g, "/");
     
-    addDebugLog("About to convert source video: " + sourceVideoPath);
-    addDebugLog("API Key length: " + params.apiKey.length);
-    
-    // Use official FAL.ai client only (no fallback)
+    var bundledClient = getFalClient();
+    if (!bundledClient) return;
+
+    bundledClient.uploadFile(sourceVideoPath, params.apiKey, function(err, sourceUrl) {
+        if (err) {
+            handleUploadError("Source video upload failed", err);
+            return;
+        }
+        
+        updateStatus("Uploading mask video...");
+        showProgress(true, 50);
+        
+        bundledClient.uploadFile(maskVideoPath, params.apiKey, function(err, maskUrl) {
+            if (err) {
+                handleUploadError("Mask video upload failed", err);
+                return;
+            }
+            
+            updateStatus("Submitting AI inpainting job...");
+            showProgress(true, 60);
+
+            var jobParams = {
+                prompt: params.prompt,
+                negative_prompt: params.negative_prompt,
+                sourceUrl: sourceUrl,
+                maskUrl: maskUrl,
+                fps: renderResult.frameRate || 16,
+                resolution: params.resolution,
+                aspect_ratio: calculateAspectRatio(renderResult),
+                num_inference_steps: params.num_inference_steps,
+                apiKey: params.apiKey
+            };
+
+            bundledClient.submitJob(jobParams, function(err, result) {
+                handleJobSubmission(err, result, params.apiKey, renderResult, "fal-ai/wan-vace");
+            });
+        });
+    });
+}
+
+function processWithFalAIVideoToVideo(renderResult, params) {
+    updateStatus("Uploading source video...");
+    showProgress(true, 40);
+
+    var sourceVideoPath = renderResult.sourceVideoPath.replace(/\\/g, "/");
+
+    var bundledClient = getFalClient();
+    if (!bundledClient) return;
+
+    bundledClient.uploadFile(sourceVideoPath, params.apiKey, function(err, sourceUrl) {
+        if (err) {
+            handleUploadError("Source video upload failed", err);
+            return;
+        }
+
+        updateStatus("Submitting AI video-to-video job...");
+        showProgress(true, 60);
+
+        var jobParams = {
+            prompt: params.prompt,
+            video_url: sourceUrl,
+            strength: params.strength,
+            num_frames: params.num_frames,
+            frames_per_second: params.frames_per_second,
+            negative_prompt: params.negative_prompt,
+            resolution: params.resolution,
+            num_inference_steps: params.num_inference_steps,
+            apiKey: params.apiKey
+        };
+        
+        bundledClient.submitVideoToVideoJob(jobParams, function(err, result) {
+            handleJobSubmission(err, result, params.apiKey, renderResult, "fal-ai/wan/v2.2-a14b/video-to-video");
+        });
+    });
+}
+
+function getFalClient() {
     var bundledClient = window.FalAIClientBundled && window.FalAIClientBundled.default ? window.FalAIClientBundled.default : window.FalAIClientBundled;
-    
     if (!bundledClient) {
         addDebugLog("ERROR: Official FAL.ai client not loaded");
         updateStatus("Error: FAL.ai client not loaded");
         showAlert("Plugin Error: FAL.ai client not properly loaded. Please restart After Effects.");
         generateBtn.disabled = false;
         showProgress(false);
-        return;
+        return null;
     }
-    
-    addDebugLog("Using official FAL.ai client for upload");
-    addDebugLog("Client loaded successfully with uploadFile available");
-    updateStatus("Uploading source video to FAL.ai...");
-    
-    bundledClient.uploadFile(sourceVideoPath, params.apiKey, function(err, sourceUrl) {
-        addDebugLog("Upload callback called via official FAL.ai client");
-        if (err) {
-            addDebugLog("Upload error: " + err);
-            updateStatus("Upload failed!");
-            showAlert("Upload Error: " + err);
-            generateBtn.disabled = false;
-            showProgress(false);
-            return;
-        }
-        
-        addDebugLog("Source video uploaded successfully: " + sourceUrl);
-        
-        updateStatus("Uploading mask video to FAL.ai...");
-        showProgress(true, 50);
-        
-        // Upload mask video (wan-vace needs both source and mask)
-        bundledClient.uploadFile(maskVideoPath, params.apiKey, function(err, maskUrl) {
-            if (err) {
-                addDebugLog("Mask upload error: " + err);
-                updateStatus("Mask upload failed!");
-                showAlert("Mask Upload Error: " + err);
-                generateBtn.disabled = false;
-                showProgress(false);
-                return;
-            }
-            
-            addDebugLog("Mask video uploaded successfully: " + maskUrl);
-            
-            updateStatus("Submitting AI inpainting job... (This may take 2-3 minutes per 81 frames)");
-            showProgress(true, 60);
-            
-            // Calculate aspect ratio
-            var aspectRatio;
-            if (renderResult.compWidth && renderResult.compHeight) {
-                var ratio = renderResult.compWidth / renderResult.compHeight;
-                if (Math.abs(ratio - (16/9)) < 0.05) aspectRatio = "16:9";
-                else if (Math.abs(ratio - (9/16)) < 0.05) aspectRatio = "9:16";
-                else if (Math.abs(ratio - 1) < 0.05) aspectRatio = "1:1";
-                else aspectRatio = "16:9"; // Default fallback
-            } else {
-                aspectRatio = "16:9"; // Default fallback
-            }
-            addDebugLog("Calculated aspect ratio: " + aspectRatio);
-
-            // Submit job to FAL.ai (wan-vace needs both source and mask videos)
-            var jobParams = {
-                prompt: params.prompt,
-                negative_prompt: params.negative_prompt,
-                sourceUrl: sourceUrl, // URL from upload
-                maskUrl: maskUrl, // Mask video URL
-                fps: renderResult.frameRate || 16, // Use source video FPS
-                resolution: params.resolution,
-                aspect_ratio: aspectRatio,
-                num_inference_steps: params.num_inference_steps,
-                apiKey: params.apiKey
-            };
-        
-            bundledClient.submitJob(jobParams, function(err, result) {
-                addDebugLog("Job submission callback received");
-                addDebugLog("Error: " + (err ? err.message || err : "none"));
-                addDebugLog("Result: " + JSON.stringify(result));
-                
-                if (err) {
-                    addDebugLog("Job submission failed: " + (err.message || err));
-                    updateStatus("Job submission failed!");
-                    showAlert("Job Error: " + (err.message || err));
-                    generateBtn.disabled = false;
-                    showProgress(false);
-                    return;
-                }
-                
-                            if (result && result.video && result.video.url) {
-                addDebugLog("Synchronous job completed, video URL: " + result.video.url);
-                downloadAndImportResult(result.video.url, renderResult.renderFolder, renderResult);
-            } else if (result && result.request_id) {
-                addDebugLog("Asynchronous job started, request ID: " + result.request_id);
-                pollJobStatus(result.request_id, params.apiKey, renderResult.renderFolder, renderResult);
-            } else {
-                    addDebugLog("Unexpected response format: " + JSON.stringify(result));
-                    updateStatus("Unexpected API response!");
-                    showAlert("Unexpected response from FAL.ai: " + JSON.stringify(result));
-                    generateBtn.disabled = false;
-                    showProgress(false);
-                }
-            });
-        });
-    });
+    return bundledClient;
 }
 
-function pollJobStatus(requestId, apiKey, renderFolder, renderResult) {
+function handleUploadError(message, err) {
+    addDebugLog(message + ": " + err);
+    updateStatus("Upload failed!");
+    showAlert("Upload Error: " + err);
+    generateBtn.disabled = false;
+    showProgress(false);
+}
+
+function calculateAspectRatio(renderResult) {
+    if (renderResult.compWidth && renderResult.compHeight) {
+        var ratio = renderResult.compWidth / renderResult.compHeight;
+        if (Math.abs(ratio - (16 / 9)) < 0.05) return "16:9";
+        if (Math.abs(ratio - (9 / 16)) < 0.05) return "9:16";
+        if (Math.abs(ratio - 1) < 0.05) return "1:1";
+    }
+    return "16:9"; // Default fallback
+}
+
+function handleJobSubmission(err, result, apiKey, renderResult, modelUrl) {
+    addDebugLog("Job submission callback received. Error: " + (err ? err.message || err : "none") + ", Result: " + JSON.stringify(result));
+    
+    if (err) {
+        updateStatus("Job submission failed!");
+        showAlert("Job Error: " + (err.message || err));
+        generateBtn.disabled = false;
+        showProgress(false);
+        return;
+    }
+
+    // Handle nested data object for video-to-video model
+    var videoData = result.data ? result.data : result;
+
+    if (videoData && videoData.video && videoData.video.url) {
+        downloadAndImportResult(videoData.video.url, renderResult.renderFolder, renderResult);
+    } else if (result && result.request_id) {
+        pollJobStatus(result.request_id, apiKey, renderResult, modelUrl);
+    } else {
+        updateStatus("Unexpected API response!");
+        showAlert("Unexpected response from FAL.ai: " + JSON.stringify(result));
+        generateBtn.disabled = false;
+        showProgress(false);
+    }
+}
+
+function pollJobStatus(requestId, apiKey, renderResult, modelUrl) {
     updateStatus("AI processing in progress...");
     showProgress(true, 70);
     
-    // Use official FAL.ai client only
-    var bundledClient = window.FalAIClientBundled && window.FalAIClientBundled.default ? window.FalAIClientBundled.default : window.FalAIClientBundled;
+    var bundledClient = getFalClient();
     
     var pollInterval = setInterval(function() {
-        bundledClient.checkJobStatus(requestId, apiKey, function(err, result) {
+        bundledClient.checkJobStatus(requestId, apiKey, modelUrl, function(err, result) {
             addDebugLog("Job status check callback - RequestID: " + requestId);
-            addDebugLog("Status check error: " + (err ? err.message || err : "none"));
-            addDebugLog("Status result: " + JSON.stringify(result));
             
             if (err) {
-                addDebugLog("Status check failed: " + (err.message || err));
                 clearInterval(pollInterval);
                 updateStatus("Status check failed!");
                 showAlert("Status Error: " + (err.message || err));
@@ -298,19 +314,14 @@ function pollJobStatus(requestId, apiKey, renderFolder, renderResult) {
             }
             
             if (result && result.status === 'COMPLETED' && result.video && result.video.url) {
-                addDebugLog("Job completed! Video URL: " + result.video.url);
                 clearInterval(pollInterval);
-                downloadAndImportResult(result.video.url, renderFolder, renderResult);
+                downloadAndImportResult(result.video.url, renderResult.renderFolder, renderResult);
             } else if (result && result.status === 'FAILED') {
-                addDebugLog("Job failed: " + (result.error || 'Unknown error'));
                 clearInterval(pollInterval);
                 updateStatus("AI processing failed!");
                 showAlert("AI processing failed: " + (result.error || "Unknown error"));
                 generateBtn.disabled = false;
                 showProgress(false);
-            } else {
-                addDebugLog("Job still in progress, status: " + (result ? result.status : 'unknown'));
-                // Continue polling for IN_PROGRESS status
             }
         });
     }, 5000); // Poll every 5 seconds
@@ -402,21 +413,25 @@ function checkAfterEffectsStatus() {
 }
 
 function checkCurrentSelection() {
-    csInterface.evalScript("validateSelection()", function(result) {
+    var validationScript = modelSelection.value === 'video-to-video' 
+        ? "validateSelectionForVideo()" 
+        : "validateSelectionForInpaint()";
+
+    csInterface.evalScript(validationScript, function(result) {
         if (result.startsWith("ERROR:")) {
             var error = result.substring(6);
             if (error.includes("select a composition")) {
                 updateStatus("Please open a composition in After Effects");
             } else if (error.includes("select exactly one layer")) {
                 updateStatus("Please select exactly one layer");
-            } else if (error.includes("no masks")) {
-                updateStatus("Please add a mask to the selected layer");
+            } else if (error.includes("no masks") && modelSelection.value === 'generative-fill') {
+                updateStatus("Please add a mask to the selected layer for inpainting");
             } else {
-                updateStatus("Selection issue: " + error);
+                updateStatus("Ready");
             }
         } else {
             var selectionInfo = JSON.parse(result);
-            updateStatus("Ready! Layer '" + selectionInfo.layerName + "' with mask selected");
+            updateStatus("Ready! Layer '" + selectionInfo.layerName + "' selected");
         }
     });
 }
