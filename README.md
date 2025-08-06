@@ -2,7 +2,7 @@
 
 [Voir la vidéo de démonstration](./content-fill-video.mp4)
 
-**FREE AI-powered video inpainting plugin - Because Adobe was taking too long! 🤷‍♂️**
+** AI-powered video inpainting plugin - Content Fill **
 
 Remove or replace objects in videos using cutting-edge AI technology, directly in After Effects.
 
@@ -32,13 +32,7 @@ This plugin offers two distinct AI models to suit your creative needs:
     -   **How it works**: Uses **only a text prompt** to transform the *entire* video layer. It does not require a mask.
     -   **Best for**: Creative stylization, changing the entire scene, or generating completely new video content from a source video.
 
-## ⚠️ Current Limitations (But Hey, It's Free!)
 
-- **480p Output** - Limited by fal.ai technical constraints for now
-- **24 FPS Only** - Other frame rates not supported yet  
-- **240 Frames Max** - About 10 seconds at 24fps
-- **Cost**: ~$0.20 per 81 frames. Check [fal.ai](https://fal.ai) for exact pricing.
-- ⚠️ **SAVE YOUR PROJECT** - **Crucial for Windows users!** Always save your project before processing to prevent errors.
 
 ## 🚀 Quick Installation
 
@@ -119,16 +113,7 @@ For the plugin to work, you MUST enable a specific setting in After Effects:
 - **Clean Masks** - Smooth, precise masks = better results
 - **Backup Plan** - Plugin shows download link if auto-download fails
 
-## ⚠️ Important Warnings (In the Plugin)
 
-The plugin now displays these warnings prominently:
-- ⚠️ **SAVE YOUR COMPOSITION** before processing  
-- ⚠️ **24 FPS ONLY** - Other frame rates not supported
-- ⚠️ **240 FRAMES MAX** - Longer videos will be truncated  
-- ⚠️ **ESTIMATED COST** - ~$0.20 / 81 frames (check fal.ai for details)
-- ⚠️ **480p OUTPUT** - Limited by current API constraints
-
-## 🐛 Troubleshooting
 
 **Plugin not showing in After Effects?**
 - ✅ Check `Preferences > Scripting & Expressions > Allow Scripts to Write Files and Access Network` is ENABLED.
@@ -176,31 +161,25 @@ Project structure:
 
 ## 🙋‍♂️ About
 
-**Made by Lovis Odin** because Adobe was taking forever to add AI video tools! 😅
+**Made by Lovis Odin** 
 
-Sometimes when you need something done, you just build it yourself. This plugin brings cutting-edge AI inpainting to After Effects using fal.ai's powerful wan-vace model.
+ This plugin brings AI inpainting to After Effects using fal.ai's powerful wan-vace model.
 
-**Why I built this:**
-- Adobe's AI roadmap was too slow
-- Video editors need AI tools NOW  
-- Wanted to democratize access to AI video tech
-- Because why not? 🤷‍♂️
 
 ## 📞 Support & Community
 
-- 🐛 **Issues**: [GitHub Issues](https://github.com/your-username/your-repo/issues)
-- 💬 **Questions**: Create a GitHub discussion
+
 - 🐦 **Updates**: Follow [@odinlovis](https://twitter.com/odinlovis)
 - 📧 **Business**: lovisodin@gmail.com
 
 ## 📄 License
 
-**Free and Open** - Use it, modify it, share it!
+**Free and Open** - Use it, modify it, share it! But credit my name always ! 
 
 This plugin is free to use. The fal.ai API has its own terms of service.
 
 ---
 
-**Made with ❤️ and a healthy dose of impatience with Adobe's AI timeline**
+**Made with ❤️ **
 
 *Powered by [fal.ai](https://fal.ai) • Created by [Lovis Odin](https://lovis.io)*
